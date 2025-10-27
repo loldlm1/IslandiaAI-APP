@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# IslandiaAI system bootstrap for Pop!_OS and Ubuntu 24.04
-# - Installs OS packages (build tools, Postgres, image libs)
+# IslandiaAI system bootstrap for Pop!_OS and Ubuntu (22.04/24.04)
+# - Installs OS packages (build tools, git tooling, Playwright deps)
 # - Installs asdf and plugins (nodejs, yarn)
 # - Installs pinned Node.js and Yarn versions from .tool-versions
 # - Prepares a Next.js toolchain
@@ -78,45 +78,67 @@ ensure_apt_packages() {
   # Install only missing packages to speed up container boots
   local wanted_pkgs=(
     build-essential git curl ca-certificates gnupg lsb-release
-    openssl libssl-dev zlib1g-dev libreadline-dev libyaml-dev
-    libpq-dev pkg-config imagemagick libffi-dev libxml2-dev libxslt1-dev
-    autoconf bison libgdbm-dev libncurses5-dev libncursesw5-dev
-    libjemalloc-dev python3 python3-venv
-    postgresql postgresql-contrib
+    libssl-dev pkg-config python3 python3-venv zlib1g-dev
   )
 
-  # Headless Chrome dependencies required for Selenium system specs
-  local chrome_libs=(
+  # Shared libraries required for Playwright-managed browsers (Chromium/WebKit/Firefox)
+  local playwright_libs=(
     libatk1.0-0
     libatk-bridge2.0-0
     libdrm2
     libgbm1
     libglib2.0-0
     libgtk-3-0
+    libnspr4
     libnss3
     libpango-1.0-0
     libpangocairo-1.0-0
+    libwayland-client0
+    libwayland-cursor0
     libx11-xcb1
+    libxcb-dri3-0
+    libxcb1
     libxcomposite1
     libxcursor1
     libxdamage1
     libxfixes3
-    libxinerama1
+    libxi6
     libxkbcommon0
     libxrandr2
     libxrender1
-    libxshmfence1
     libxss1
     libxtst6
-    libwayland-client0
-    libwayland-cursor0
-    libwayland-egl1
-    libxcb-dri3-0
-    libxcb-present0
-    libxcb-sync1
-    libxcb-xfixes0
+    libxshmfence1
   )
-  wanted_pkgs+=("${chrome_libs[@]}")
+  wanted_pkgs+=("${playwright_libs[@]}")
+
+  # Handle Wayland EGL provider differences between Ubuntu releases
+  local _wayland_candidate
+  _wayland_candidate="$(apt-cache policy libwayland-egl1 2>/dev/null | awk '/Candidate:/ {print $2}')"
+  if [[ -n "${_wayland_candidate:-}" && "${_wayland_candidate}" != "(none)" ]]; then
+    wanted_pkgs+=(libwayland-egl1)
+  else
+    _wayland_candidate="$(apt-cache policy libwayland-egl1-mesa 2>/dev/null | awk '/Candidate:/ {print $2}')"
+    if [[ -n "${_wayland_candidate:-}" && "${_wayland_candidate}" != "(none)" ]]; then
+      wanted_pkgs+=(libwayland-egl1-mesa)
+    else
+      warn "Neither libwayland-egl1 nor libwayland-egl1-mesa is installable on this system."
+    fi
+  fi
+
+  # Handle at-spi library transition (libatspi2.0-0 -> libatspi2.0-0t64)
+  local _atspi_candidate
+  _atspi_candidate="$(apt-cache policy libatspi2.0-0t64 2>/dev/null | awk '/Candidate:/ {print $2}')"
+  if [[ -n "${_atspi_candidate:-}" && "${_atspi_candidate}" != "(none)" ]]; then
+    wanted_pkgs+=(libatspi2.0-0t64)
+  else
+    _atspi_candidate="$(apt-cache policy libatspi2.0-0 2>/dev/null | awk '/Candidate:/ {print $2}')"
+    if [[ -n "${_atspi_candidate:-}" && "${_atspi_candidate}" != "(none)" ]]; then
+      wanted_pkgs+=(libatspi2.0-0)
+    else
+      warn "Neither libatspi2.0-0t64 nor libatspi2.0-0 is installable on this system."
+    fi
+  fi
 
   # Handle ALSA library transition on newer Ubuntus (libasound2 -> libasound2t64)
   # Prefer an installable candidate rather than matching by name, since
@@ -132,43 +154,6 @@ ensure_apt_packages() {
     else
       warn "Neither libasound2t64 nor libasound2 is installable on this system."
     fi
-  fi
-
-  if apt-cache show libglu1-mesa >/dev/null 2>&1; then
-    wanted_pkgs+=(libglu1-mesa)
-  fi
-  
-  # Add Chromium packages for Capybara/Selenium system tests
-  # Select installable candidates to avoid apt failures across Ubuntu versions
-  local _cand
-  local _chrome_pkg=""
-  local _driver_pkg=""
-
-  _cand="$(apt-cache policy chromium-browser 2>/dev/null | awk '/Candidate:/ {print $2}')"
-  if [[ -n "${_cand:-}" && "${_cand}" != "(none)" ]]; then
-    _chrome_pkg="chromium-browser"
-  else
-    _cand="$(apt-cache policy chromium 2>/dev/null | awk '/Candidate:/ {print $2}')"
-    if [[ -n "${_cand:-}" && "${_cand}" != "(none)" ]]; then
-      _chrome_pkg="chromium"
-    fi
-  fi
-
-  _cand="$(apt-cache policy chromium-chromedriver 2>/dev/null | awk '/Candidate:/ {print $2}')"
-  if [[ -n "${_cand:-}" && "${_cand}" != "(none)" ]]; then
-    _driver_pkg="chromium-chromedriver"
-  else
-    _cand="$(apt-cache policy chromium-driver 2>/dev/null | awk '/Candidate:/ {print $2}')"
-    if [[ -n "${_cand:-}" && "${_cand}" != "(none)" ]]; then
-      _driver_pkg="chromium-driver"
-    fi
-  fi
-
-  if [[ -n "${_chrome_pkg}" ]]; then
-    wanted_pkgs+=("${_chrome_pkg}")
-  fi
-  if [[ -n "${_driver_pkg}" ]]; then
-    wanted_pkgs+=("${_driver_pkg}")
   fi
 
   local missing=()
@@ -275,50 +260,6 @@ EOF
   fi
 }
 
-verify_postgres_packages() {
-  if ! require_cmd psql; then
-    warn "PostgreSQL client tools (psql) not installed."
-    SETUP_FAILURES+=("PostgreSQL packages - psql command not available")
-    return 1
-  fi
-  info "PostgreSQL packages installed successfully."
-  return 0
-}
-
-verify_chromium_packages() {
-  local chrome_bin=""
-  local driver_bin=""
-  
-  # Check for Chrome/Chromium binary
-  if require_cmd chromium-browser; then
-    chrome_bin="chromium-browser"
-  elif require_cmd chromium; then
-    chrome_bin="chromium"
-  elif require_cmd google-chrome; then
-    chrome_bin="google-chrome"
-  fi
-  
-  # Check for chromedriver
-  if require_cmd chromedriver; then
-    driver_bin="chromedriver"
-  elif require_cmd chromium-chromedriver; then
-    driver_bin="chromium-chromedriver"
-  fi
-  
-  if [[ -n "$chrome_bin" && -n "$driver_bin" ]]; then
-    info "Chrome/Chromium ($chrome_bin) and driver ($driver_bin) installed successfully."
-    return 0
-  elif [[ -n "$chrome_bin" ]]; then
-    warn "Chrome/Chromium found but chromedriver missing. System tests may fail."
-    SETUP_FAILURES+=("Chromium packages - driver not available (found: $chrome_bin)")
-    return 1
-  else
-    warn "Chrome/Chromium not installed. System tests requiring JavaScript will be skipped."
-    SETUP_FAILURES+=("Chromium packages - browser not available")
-    return 1
-  fi
-}
-
 print_final_status() {
   local want_node=$1
   local sys_node=$2
@@ -341,9 +282,9 @@ print_final_status() {
     echo "✓ ALL SYSTEMS OPERATIONAL"
     echo ""
     echo "System dependencies installed. Next steps:"
-    echo "  - Run ./scripts/setup_after_container.sh to configure PostgreSQL"
     echo "  - Run yarn install"
     echo "  - Run yarn dev"
+    echo "  - Run npx playwright install"
     echo ""
     echo "Note: Open a new shell or run 'source ~/.asdf/asdf.sh' if using asdf."
   else
@@ -367,8 +308,10 @@ main() {
   case "$os_id" in
     ubuntu-24.04|pop-24.04|ubuntu-24.10|pop-24.10|ubuntu-24.*|pop-24.*)
       ensure_apt_packages ;;
+    ubuntu-22.04|pop-22.04|ubuntu-22.*|pop-22.*)
+      ensure_apt_packages ;;
     ubuntu-*|pop-*)
-      warn "This script is tested for 24.04; attempting on $os_id"; ensure_apt_packages ;;
+      warn "This script is tested for Ubuntu 22.04/24.04; attempting on $os_id"; ensure_apt_packages ;;
     *)
       warn "Unknown OS ($os_id). Attempting Debian/Ubuntu-compatible steps."
       ensure_apt_packages ;;
@@ -395,8 +338,6 @@ main() {
   else
     if (( use_asdf_node == 0 && use_asdf_yarn == 0 )); then
       info "Node.js and Yarn already match .tool-versions; skipping asdf installation."
-      verify_postgres_packages || true
-      verify_chromium_packages || true
       print_final_status "${want_node}" "${sys_node}" "${use_asdf_node}" "${want_yarn}" "${sys_yarn}" "${use_asdf_yarn}"
       return 0
     fi
@@ -411,9 +352,6 @@ main() {
     if require_cmd node; then sys_node="$(node -v 2>/dev/null | sed 's/^v//')"; fi
     if require_cmd yarn; then sys_yarn="$(yarn -v 2>/dev/null || true)"; fi
   fi
-
-  verify_postgres_packages || true  # Don't fail the entire script
-  verify_chromium_packages || true  # Don't fail the entire script
 
   print_final_status "${want_node}" "${sys_node}" "${use_asdf_node}" "${want_yarn}" "${sys_yarn}" "${use_asdf_yarn}"
   return 0
