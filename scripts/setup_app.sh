@@ -3,9 +3,9 @@ set -euo pipefail
 
 # IslandiaAI system bootstrap for Pop!_OS and Ubuntu 24.04
 # - Installs OS packages (build tools, Postgres, image libs)
-# - Installs asdf and plugins (ruby, nodejs, yarn, python)
-# - Installs pinned tool versions from .tool-versions
-# - Installs bundler and Rails 8
+# - Installs asdf and plugins (nodejs, yarn)
+# - Installs pinned Node.js and Yarn versions from .tool-versions
+# - Prepares a Next.js toolchain
 
 REPO_ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. && pwd)"
 
@@ -64,17 +64,6 @@ tool_version() {
 ver_eq() {
   local a=$1 b=$2
   [[ "$a" == "$b" ]]
-}
-
-# Compare major.minor segments; ignore patch differences
-ver_same_minor() {
-  local want=$1 have=$2
-  if [[ -z "${want:-}" || -z "${have:-}" ]]; then
-    return 1
-  fi
-  IFS=. read -r want_major want_minor _ <<<"$want"
-  IFS=. read -r have_major have_minor _ <<<"$have"
-  [[ "$want_major" == "$have_major" && "$want_minor" == "$have_minor" ]]
 }
 
 ensure_apt_packages() {
@@ -238,11 +227,9 @@ ensure_asdf() {
 }
 
 ensure_asdf_plugins() {
-  info "Ensuring asdf plugins (ruby, nodejs, yarn, python)..."
-  asdf plugin list | grep -q '^ruby$' || asdf plugin add ruby https://github.com/asdf-vm/asdf-ruby.git
+  info "Ensuring asdf plugins (nodejs, yarn)..."
   asdf plugin list | grep -q '^nodejs$' || asdf plugin add nodejs https://github.com/asdf-vm/asdf-nodejs.git
   asdf plugin list | grep -q '^yarn$' || asdf plugin add yarn https://github.com/twuni/asdf-yarn.git
-  asdf plugin list | grep -q '^python$' || asdf plugin add python https://github.com/danhper/asdf-python.git
 
   # Node.js plugin requires release team keys for source tarball verification
   bash -c "${ASDF_DIR:-$HOME/.asdf}/plugins/nodejs/bin/import-release-team-keyring" || true
@@ -252,38 +239,23 @@ ensure_tool_versions() {
   if [[ ! -f "$REPO_ROOT_DIR/.tool-versions" ]]; then
     warn ".tool-versions not found at $REPO_ROOT_DIR — creating with defaults"
     cat > "$REPO_ROOT_DIR/.tool-versions" <<'EOF'
-ruby 3.4.4
 nodejs 20.17.0
 yarn 1.22.22
-python 3.12.7
 EOF
   fi
   info "Installing tools from .tool-versions (granular check)..."
 
   # Parse versions from .tool-versions
-  local want_ruby want_node want_yarn want_python
-  want_ruby="$(tool_version ruby)"
+  local want_node want_yarn
   want_node="$(tool_version nodejs)"
   want_yarn="$(tool_version yarn)"
-  want_python="$(tool_version python)"
 
   # Detect current system versions
-  local sys_ruby sys_node sys_yarn sys_python
-  if require_cmd ruby; then sys_ruby="$(ruby -e 'print RUBY_VERSION' 2>/dev/null || true)"; fi
+  local sys_node sys_yarn
   if require_cmd node; then sys_node="$(node -v 2>/dev/null | sed 's/^v//')"; fi
   if require_cmd yarn; then sys_yarn="$(yarn -v 2>/dev/null || true)"; fi
-  if require_cmd python3; then sys_python="$(python3 -V 2>/dev/null | awk '{print $2}')"; fi
 
   # Install only missing or mismatched versions
-  if [[ -n "${want_ruby}" ]]; then
-    if [[ -n "${sys_ruby}" ]] && ver_eq "${sys_ruby}" "${want_ruby}"; then
-      info "Ruby ${want_ruby} already available in system"
-    else
-      info "Installing Ruby ${want_ruby} via asdf (current: ${sys_ruby:-none})..."
-      asdf install ruby "${want_ruby}"
-    fi
-  fi
-
   if [[ -n "${want_node}" ]]; then
     if [[ -n "${sys_node}" ]] && ver_eq "${sys_node}" "${want_node}"; then
       info "Node.js ${want_node} already available in system"
@@ -300,29 +272,6 @@ EOF
       info "Installing Yarn ${want_yarn} via asdf (current: ${sys_yarn:-none})..."
       asdf install yarn "${want_yarn}"
     fi
-  fi
-
-  if [[ -n "${want_python}" ]]; then
-    if [[ -n "${sys_python}" ]] && { ver_eq "${sys_python}" "${want_python}" || ver_same_minor "${want_python}" "${sys_python}"; }; then
-      info "Python ${sys_python} already available in system"
-    else
-      info "Installing Python ${want_python} via asdf (current: ${sys_python:-none})..."
-      asdf install python "${want_python}"
-    fi
-  fi
-}
-
-install_gems() {
-  if ! require_cmd gem; then
-    err "Ruby not available. Ensure asdf installed Ruby (check .tool-versions)."
-  fi
-  info "Installing bundler..."
-  gem install bundler --no-document
-  if [[ "${INSTALL_GLOBAL_RAILS:-0}" == "1" ]]; then
-    info "INSTALL_GLOBAL_RAILS=1 → installing Rails globally"
-    gem install rails -v "~> 8.0" --no-document
-  else
-    info "Skipping global Rails install (set INSTALL_GLOBAL_RAILS=1 to enable)"
   fi
 }
 
@@ -370,6 +319,47 @@ verify_chromium_packages() {
   fi
 }
 
+print_final_status() {
+  local want_node=$1
+  local sys_node=$2
+  local use_asdf_node=$3
+  local want_yarn=$4
+  local sys_yarn=$5
+  local use_asdf_yarn=$6
+
+  echo ""
+  echo "=========================================="
+  echo "SETUP COMPLETE - STATUS REPORT"
+  echo "=========================================="
+  echo ""
+  echo "[INFO] Runtime summary:"
+  echo "  node: want=${want_node:-unset}, system=${sys_node:-none}, via=$([[ ${use_asdf_node:-1} -eq 0 ]] && echo system || echo asdf)"
+  echo "  yarn: want=${want_yarn:-unset}, system=${sys_yarn:-none}, via=$([[ ${use_asdf_yarn:-1} -eq 0 ]] && echo system || echo asdf)"
+  echo ""
+
+  if (( ${#SETUP_FAILURES[@]} == 0 )); then
+    echo "✓ ALL SYSTEMS OPERATIONAL"
+    echo ""
+    echo "System dependencies installed. Next steps:"
+    echo "  - Run ./scripts/setup_after_container.sh to configure PostgreSQL"
+    echo "  - Run yarn install"
+    echo "  - Run yarn dev"
+    echo ""
+    echo "Note: Open a new shell or run 'source ~/.asdf/asdf.sh' if using asdf."
+  else
+    echo "⚠ ISSUES DETECTED - ATTENTION REQUIRED"
+    echo ""
+    echo "The following components need attention:"
+    for i in "${!SETUP_FAILURES[@]}"; do
+      echo "  $((i+1)). ${SETUP_FAILURES[$i]}"
+    done
+    echo ""
+    echo "Please resolve the above issues before proceeding."
+    echo ""
+  fi
+  echo "=========================================="
+}
+
 main() {
   local os_id
   os_id=$(detect_os)
@@ -385,82 +375,49 @@ main() {
   esac
 
   # Determine desired versions
-  local want_ruby want_node want_yarn want_python
-  want_ruby="$(tool_version ruby)"
+  local want_node want_yarn
   want_node="$(tool_version nodejs)"
   want_yarn="$(tool_version yarn)"
-  want_python="$(tool_version python)"
 
   # Detect system versions
-  local sys_ruby sys_node sys_yarn sys_python
-  if require_cmd ruby; then sys_ruby="$(ruby -e 'print RUBY_VERSION' 2>/dev/null || true)"; fi
+  local sys_node sys_yarn
   if require_cmd node; then sys_node="$(node -v 2>/dev/null | sed 's/^v//')"; fi
   if require_cmd yarn; then sys_yarn="$(yarn -v 2>/dev/null || true)"; fi
-  if require_cmd python3; then sys_python="$(python3 -V 2>/dev/null | awk '{print $2}')"; fi
+
+  local use_asdf_node=1 use_asdf_yarn=1
+  if [[ -n "${sys_node:-}" && -n "${want_node:-}" ]] && ver_eq "${sys_node}" "${want_node}"; then use_asdf_node=0; fi
+  if [[ -n "${sys_yarn:-}" && -n "${want_yarn:-}" ]] && ver_eq "${sys_yarn}" "${want_yarn}"; then use_asdf_yarn=0; fi
 
   if [[ "${SKIP_RUNTIMES:-0}" == "1" ]]; then
-    info "SKIP_RUNTIMES=1 → skipping asdf and gem installation"
+    info "SKIP_RUNTIMES=1 → skipping asdf runtime installation"
+    use_asdf_node=0
+    use_asdf_yarn=0
   else
-    local use_asdf_ruby=1 use_asdf_node=1 use_asdf_yarn=1 use_asdf_python=1
-    if [[ -n "${sys_ruby:-}" && -n "${want_ruby:-}" ]] && ver_eq "${sys_ruby}" "${want_ruby}"; then use_asdf_ruby=0; fi
-    if [[ -n "${sys_node:-}" && -n "${want_node:-}" ]] && ver_eq "${sys_node}" "${want_node}"; then use_asdf_node=0; fi
-    if [[ -n "${sys_yarn:-}" && -n "${want_yarn:-}" ]] && ver_eq "${sys_yarn}" "${want_yarn}"; then use_asdf_yarn=0; fi
-    if [[ -n "${sys_python:-}" && -n "${want_python:-}" ]] && { ver_eq "${sys_python}" "${want_python}" || ver_same_minor "${want_python}" "${sys_python}"; }; then
-      use_asdf_python=0
+    if (( use_asdf_node == 0 && use_asdf_yarn == 0 )); then
+      info "Node.js and Yarn already match .tool-versions; skipping asdf installation."
+      verify_postgres_packages || true
+      verify_chromium_packages || true
+      print_final_status "${want_node}" "${sys_node}" "${use_asdf_node}" "${want_yarn}" "${sys_yarn}" "${use_asdf_yarn}"
+      return 0
     fi
 
-    local asdf_needed=$((use_asdf_ruby || use_asdf_node || use_asdf_yarn || use_asdf_python))
+    info "Using asdf for runtimes that don't match system versions"
+    ensure_asdf
+    # shellcheck source=/dev/null
+    . "$HOME/.asdf/asdf.sh"
+    ensure_asdf_plugins
+    ensure_tool_versions
 
-    if (( asdf_needed )); then
-      info "Using asdf for runtimes that don't match system versions"
-      ensure_asdf
-      # shellcheck source=/dev/null
-      . "$HOME/.asdf/asdf.sh"
-      ensure_asdf_plugins
-      ensure_tool_versions
-    else
-      info "System runtimes match .tool-versions; skipping asdf installation"
-    fi
-    install_gems
+    if require_cmd node; then sys_node="$(node -v 2>/dev/null | sed 's/^v//')"; fi
+    if require_cmd yarn; then sys_yarn="$(yarn -v 2>/dev/null || true)"; fi
   fi
+
   verify_postgres_packages || true  # Don't fail the entire script
   verify_chromium_packages || true  # Don't fail the entire script
 
-  # Final status report
-  echo ""
-  echo "=========================================="
-  echo "SETUP COMPLETE - STATUS REPORT"
-  echo "=========================================="
-  echo ""
-  echo "[INFO] Runtime summary:"
-  echo "  ruby: want=${want_ruby:-unset}, system=${sys_ruby:-none}, via=$([[ ${use_asdf_ruby:-1} -eq 0 ]] && echo system || echo asdf)"
-  echo "  node: want=${want_node:-unset}, system=${sys_node:-none}, via=$([[ ${use_asdf_node:-1} -eq 0 ]] && echo system || echo asdf)"
-  echo "  yarn: want=${want_yarn:-unset}, system=${sys_yarn:-none}, via=$([[ ${use_asdf_yarn:-1} -eq 0 ]] && echo system || echo asdf)"
-  echo "  python: want=${want_python:-unset}, system=${sys_python:-none}, via=$([[ ${use_asdf_python:-1} -eq 0 ]] && echo system || echo asdf)"
-  echo ""
+  print_final_status "${want_node}" "${sys_node}" "${use_asdf_node}" "${want_yarn}" "${sys_yarn}" "${use_asdf_yarn}"
+  return 0
 
-  if (( ${#SETUP_FAILURES[@]} == 0 )); then
-    echo "✓ ALL SYSTEMS OPERATIONAL"
-    echo ""
-    echo "System dependencies installed. Next steps:"
-    echo "  - Run ./scripts/setup_after_container.sh to configure PostgreSQL"
-    echo "  - Run bundle install && yarn install"
-    echo "  - Run bundle exec rails db:setup"
-    echo ""
-    echo "Note: Open a new shell or run 'source ~/.asdf/asdf.sh' if using asdf."
-  else
-    echo "⚠ ISSUES DETECTED - ATTENTION REQUIRED"
-    echo ""
-    echo "The following components need attention:"
-    for i in "${!SETUP_FAILURES[@]}"; do
-      echo "  $((i+1)). ${SETUP_FAILURES[$i]}"
-    done
-    echo ""
-    echo "Please resolve the above issues before proceeding."
-    echo ""
-  fi
-  echo "=========================================="
-	return 0
 }
 
 main "$@"
