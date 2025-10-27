@@ -1,0 +1,426 @@
+"""
+IslandiaAI GraphQL schema snapshot.
+Generated via `bundle exec rails graphql:schema:dump` and kept in docs for quick reference.
+"""
+schema {
+  query: Query
+  mutation: Mutation
+}
+
+type Query {
+  viewer: User
+  node(id: ID!): Node
+  nodes(ids: [ID!]!): [Node]
+  user(id: ID!): User
+  users(after: String, before: String, first: Int, last: Int): UserConnection!
+  supplier(id: ID!): Supplier
+  suppliers(after: String, before: String, first: Int, last: Int): SupplierConnection!
+  customer(id: ID!): Customer
+  customers(after: String, before: String, first: Int, last: Int): CustomerConnection!
+  product(id: ID!): Product
+  products(
+    supplierId: ID
+    after: String
+    before: String
+    first: Int
+    last: Int
+  ): ProductConnection!
+  order(id: ID!): Order
+  orders(
+    status: OrderStatusEnum
+    supplierId: ID
+    customerId: ID
+    orderedFrom: ISO8601DateTime
+    orderedTo: ISO8601DateTime
+    after: String
+    before: String
+    first: Int
+    last: Int
+  ): OrderConnection!
+  productRequest(id: ID!): ProductRequest
+  productRequests(after: String, before: String, first: Int, last: Int): ProductRequestConnection!
+  invoice(id: ID!): Invoice
+  invoices(
+    status: InvoiceStatusEnum
+    supplierId: ID
+    customerId: ID
+    createdFrom: ISO8601DateTime
+    createdTo: ISO8601DateTime
+    after: String
+    before: String
+    first: Int
+    last: Int
+  ): InvoiceConnection!
+  invoiceLineItem(id: ID!): InvoiceLineItem
+  invoiceLineItems(after: String, before: String, first: Int, last: Int): InvoiceLineItemConnection!
+  magicInvoiceSubmission(id: ID!): MagicInvoiceSubmission
+  magicInvoiceSubmissions(after: String, before: String, first: Int, last: Int): MagicInvoiceSubmissionConnection!
+}
+
+type Mutation {
+  createOrder(input: CreateOrderInput!): CreateOrderPayload
+  updateOrderStatus(input: UpdateOrderStatusInput!): UpdateOrderStatusPayload
+  submitMagicInvoice(input: SubmitMagicInvoiceInput!): SubmitMagicInvoicePayload
+}
+
+interface Node {
+  id: ID!
+}
+
+interface TimestampFields {
+  createdAt: ISO8601DateTime!
+  updatedAt: ISO8601DateTime!
+}
+
+type User implements Node & TimestampFields {
+  id: ID!
+  createdAt: ISO8601DateTime!
+  updatedAt: ISO8601DateTime!
+  email: String!
+  name: String!
+  userType: UserTypeEnum!
+  lastMagicOrderReadAt: ISO8601DateTime
+  suppliers(after: String, before: String, first: Int, last: Int): SupplierConnection!
+  customers(after: String, before: String, first: Int, last: Int): CustomerConnection!
+  orders(after: String, before: String, first: Int, last: Int): OrderConnection!
+  products(after: String, before: String, first: Int, last: Int): ProductConnection!
+  productRequests(after: String, before: String, first: Int, last: Int): ProductRequestConnection!
+  magicInvoiceSubmissions(after: String, before: String, first: Int, last: Int): MagicInvoiceSubmissionConnection!
+}
+
+type Supplier implements Node & TimestampFields {
+  id: ID!
+  createdAt: ISO8601DateTime!
+  updatedAt: ISO8601DateTime!
+  name: String!
+  rif: String!
+  email: String
+  phone: String
+  contactName: String
+  address: String
+  orderRequestDate: ISO8601Date
+  magicInvoiceSpreadsheetAttached: Boolean!
+  user: User!
+  orders(after: String, before: String, first: Int, last: Int): OrderConnection!
+  products(after: String, before: String, first: Int, last: Int): ProductConnection!
+  productRequests(after: String, before: String, first: Int, last: Int): ProductRequestConnection!
+  invoices(after: String, before: String, first: Int, last: Int): InvoiceConnection!
+  customers(after: String, before: String, first: Int, last: Int): CustomerConnection!
+}
+
+type Customer implements Node & TimestampFields {
+  id: ID!
+  createdAt: ISO8601DateTime!
+  updatedAt: ISO8601DateTime!
+  name: String!
+  customerCode: BigInt!
+  rif: String
+  email: String
+  phone: String
+  address: String
+  user: User!
+  latestOrder: Order
+  orders(after: String, before: String, first: Int, last: Int): OrderConnection!
+  productRequests(after: String, before: String, first: Int, last: Int): ProductRequestConnection!
+  invoices(after: String, before: String, first: Int, last: Int): InvoiceConnection!
+}
+
+type Product implements Node & TimestampFields {
+  id: ID!
+  createdAt: ISO8601DateTime!
+  updatedAt: ISO8601DateTime!
+  code: BigInt!
+  barCode: BigInt
+  name: String!
+  description: String
+  price: Float!
+  cost: Float
+  stockQuantity: Int!
+  supplier: Supplier!
+  user: User!
+  productRequests(after: String, before: String, first: Int, last: Int): ProductRequestConnection!
+  orders(after: String, before: String, first: Int, last: Int): OrderConnection!
+  requestingCustomers(after: String, before: String, first: Int, last: Int): CustomerConnection!
+}
+
+type Order implements Node & TimestampFields {
+  id: ID!
+  createdAt: ISO8601DateTime!
+  updatedAt: ISO8601DateTime!
+  code: BigInt!
+  status: OrderStatusEnum!
+  orderedAt: ISO8601DateTime
+  fulfilledAt: ISO8601DateTime
+  totalAmount: Float!
+  magicOrderDocumentAttached: Boolean!
+  magicOrderPackageAttached: Boolean!
+  user: User!
+  customer: Customer!
+  supplier: Supplier
+  productRequests(after: String, before: String, first: Int, last: Int): ProductRequestConnection!
+  products(after: String, before: String, first: Int, last: Int): ProductConnection!
+  invoiceLineItems(after: String, before: String, first: Int, last: Int): InvoiceLineItemConnection!
+  invoices(after: String, before: String, first: Int, last: Int): InvoiceConnection!
+  latestCustomer: Customer
+}
+
+type ProductRequest implements Node & TimestampFields {
+  id: ID!
+  createdAt: ISO8601DateTime!
+  updatedAt: ISO8601DateTime!
+  quantity: Int!
+  unitPrice: Float
+  status: ProductRequestStatusEnum!
+  notes: String
+  user: User!
+  customer: Customer!
+  supplier: Supplier
+  product: Product!
+  order: Order
+  invoiceLineItems(after: String, before: String, first: Int, last: Int): InvoiceLineItemConnection!
+  invoices(after: String, before: String, first: Int, last: Int): InvoiceConnection!
+}
+
+type Invoice implements Node & TimestampFields {
+  id: ID!
+  createdAt: ISO8601DateTime!
+  updatedAt: ISO8601DateTime!
+  status: InvoiceStatusEnum!
+  generationMethod: InvoiceGenerationMethodEnum!
+  rawAmount: Float!
+  ivaAmount: Float!
+  totalAmount: Float!
+  jobState: String
+  generatedImageAttached: Boolean!
+  generatedExcelAttached: Boolean!
+  supplier: Supplier!
+  customer: Customer!
+  invoiceLineItems(after: String, before: String, first: Int, last: Int): InvoiceLineItemConnection!
+  orders(after: String, before: String, first: Int, last: Int): OrderConnection!
+  productRequests(after: String, before: String, first: Int, last: Int): ProductRequestConnection!
+}
+
+type InvoiceLineItem implements Node & TimestampFields {
+  id: ID!
+  createdAt: ISO8601DateTime!
+  updatedAt: ISO8601DateTime!
+  unitPrice: Float!
+  quantity: Float!
+  rawAmount: Float!
+  ivaAmount: Float!
+  totalAmount: Float!
+  invoice: Invoice!
+  productRequest: ProductRequest!
+  product: Product!
+  order: Order
+}
+
+type MagicInvoiceSubmission implements Node & TimestampFields {
+  id: ID!
+  createdAt: ISO8601DateTime!
+  updatedAt: ISO8601DateTime!
+  status: MagicInvoiceSubmissionStatusEnum!
+  referenceCode: String
+  notes: String
+  orderDocumentAttached: Boolean!
+  supplierSpreadsheetAttached: Boolean!
+  user: User!
+  supplier: Supplier
+}
+
+type CreateOrderPayload {
+  order: Order
+  userErrors: [UserError!]!
+}
+
+input CreateOrderInput {
+  clientMutationId: String
+  code: BigInt!
+  status: OrderStatusEnum!
+  orderedAt: ISO8601DateTime
+  fulfilledAt: ISO8601DateTime
+  totalAmount: Float!
+  customerId: ID!
+  supplierId: ID
+}
+
+type UpdateOrderStatusPayload {
+  order: Order
+  userErrors: [UserError!]!
+}
+
+input UpdateOrderStatusInput {
+  clientMutationId: String
+  id: ID!
+  status: OrderStatusEnum!
+}
+
+type SubmitMagicInvoicePayload {
+  magicInvoiceSubmission: MagicInvoiceSubmission
+  userErrors: [UserError!]!
+}
+
+input SubmitMagicInvoiceInput {
+  clientMutationId: String
+  orderDocuments: [Upload!]!
+  supplierSpreadsheet: Upload
+  supplierId: ID
+  parserPayload: JSON
+}
+
+type UserError {
+  path: [String!]!
+  message: String!
+}
+
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+type UserConnection {
+  edges: [UserEdge]
+  nodes: [User]
+  pageInfo: PageInfo!
+}
+
+type UserEdge {
+  cursor: String!
+  node: User
+}
+
+type SupplierConnection {
+  edges: [SupplierEdge]
+  nodes: [Supplier]
+  pageInfo: PageInfo!
+}
+
+type SupplierEdge {
+  cursor: String!
+  node: Supplier
+}
+
+type CustomerConnection {
+  edges: [CustomerEdge]
+  nodes: [Customer]
+  pageInfo: PageInfo!
+}
+
+type CustomerEdge {
+  cursor: String!
+  node: Customer
+}
+
+type ProductConnection {
+  edges: [ProductEdge]
+  nodes: [Product]
+  pageInfo: PageInfo!
+}
+
+type ProductEdge {
+  cursor: String!
+  node: Product
+}
+
+type OrderConnection {
+  edges: [OrderEdge]
+  nodes: [Order]
+  pageInfo: PageInfo!
+}
+
+type OrderEdge {
+  cursor: String!
+  node: Order
+}
+
+type ProductRequestConnection {
+  edges: [ProductRequestEdge]
+  nodes: [ProductRequest]
+  pageInfo: PageInfo!
+}
+
+type ProductRequestEdge {
+  cursor: String!
+  node: ProductRequest
+}
+
+type InvoiceConnection {
+  edges: [InvoiceEdge]
+  nodes: [Invoice]
+  pageInfo: PageInfo!
+}
+
+type InvoiceEdge {
+  cursor: String!
+  node: Invoice
+}
+
+type InvoiceLineItemConnection {
+  edges: [InvoiceLineItemEdge]
+  nodes: [InvoiceLineItem]
+  pageInfo: PageInfo!
+}
+
+type InvoiceLineItemEdge {
+  cursor: String!
+  node: InvoiceLineItem
+}
+
+type MagicInvoiceSubmissionConnection {
+  edges: [MagicInvoiceSubmissionEdge]
+  nodes: [MagicInvoiceSubmission]
+  pageInfo: PageInfo!
+}
+
+type MagicInvoiceSubmissionEdge {
+  cursor: String!
+  node: MagicInvoiceSubmission
+}
+
+enum OrderStatusEnum {
+  DRAFT
+  PENDING
+  FULFILLED
+  CANCELLED
+}
+
+enum ProductRequestStatusEnum {
+  PENDING
+  APPROVED
+  FULFILLED
+  CANCELLED
+}
+
+enum InvoiceStatusEnum {
+  DRAFT
+  ISSUED
+  PAID
+  CANCELLED
+}
+
+enum InvoiceGenerationMethodEnum {
+  MANUAL
+  AUTOMATIC
+}
+
+enum MagicInvoiceSubmissionStatusEnum {
+  PENDING
+  PROCESSING
+  MANUAL_REVIEW
+  COMPLETED
+  FAILED
+}
+
+enum UserTypeEnum {
+  ADMIN
+  STAFF
+  CUSTOMER
+}
+
+scalar BigInt
+scalar ISO8601Date
+scalar ISO8601DateTime
+scalar JSON
+scalar Upload
