@@ -1,0 +1,38 @@
+{
+  "name": "app",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=20.17.0",
+    "yarn": "1.22.22"
+  },
+  "scripts": {
+    "dev": "next dev --port 43111",
+    "build": "next build",
+    "start": "next start --port 43111",
+    "lint": "next lint",
+    "codegen": "graphql-codegen --config codegen.ts",
+    "test": "echo \"Test suite not yet configured\"",
+    "coverage": "echo \"Coverage suite not yet configured\"",
+    "test:e2e": "echo \"E2E suite not yet configured\""
+  },
+  "dependencies": {
+    "next": "16.0.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
+  },
+  "devDependencies": {
+    "@graphql-codegen/cli": "^5.0.2",
+    "@graphql-codegen/client-preset": "^4.4.1",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.0.0",
+    "graphql": "^16.9.0",
+    "prettier": "^3.4.2",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
