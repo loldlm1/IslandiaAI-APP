@@ -1,0 +1,8 @@
+# Placeholder schema. Replace with Rails-generated schema snapshot.
+schema {
+  query: Query
+}
+
+type Query {
+  _empty: Boolean
+}
