@@ -236,13 +236,13 @@ EOF
   want_yarn="$(tool_version yarn)"
 
   # Detect current system versions
-  local sys_node sys_yarn
+  local sys_node="" sys_yarn=""
   if require_cmd node; then sys_node="$(node -v 2>/dev/null | sed 's/^v//')"; fi
   if require_cmd yarn; then sys_yarn="$(yarn -v 2>/dev/null || true)"; fi
 
   # Install only missing or mismatched versions
   if [[ -n "${want_node}" ]]; then
-    if [[ -n "${sys_node}" ]] && ver_eq "${sys_node}" "${want_node}"; then
+    if [[ -n "${sys_node:-}" ]] && ver_eq "${sys_node}" "${want_node}"; then
       info "Node.js ${want_node} already available in system"
     else
       info "Installing Node.js ${want_node} via asdf (current: ${sys_node:-none})..."
@@ -251,7 +251,7 @@ EOF
   fi
 
   if [[ -n "${want_yarn}" ]]; then
-    if [[ -n "${sys_yarn}" ]] && ver_eq "${sys_yarn}" "${want_yarn}"; then
+    if [[ -n "${sys_yarn:-}" ]] && ver_eq "${sys_yarn}" "${want_yarn}"; then
       info "Yarn ${want_yarn} already available in system"
     else
       info "Installing Yarn ${want_yarn} via asdf (current: ${sys_yarn:-none})..."
@@ -323,7 +323,7 @@ main() {
   want_yarn="$(tool_version yarn)"
 
   # Detect system versions
-  local sys_node sys_yarn
+  local sys_node="" sys_yarn=""
   if require_cmd node; then sys_node="$(node -v 2>/dev/null | sed 's/^v//')"; fi
   if require_cmd yarn; then sys_yarn="$(yarn -v 2>/dev/null || true)"; fi
 
@@ -338,7 +338,7 @@ main() {
   else
     if (( use_asdf_node == 0 && use_asdf_yarn == 0 )); then
       info "Node.js and Yarn already match .tool-versions; skipping asdf installation."
-      print_final_status "${want_node}" "${sys_node}" "${use_asdf_node}" "${want_yarn}" "${sys_yarn}" "${use_asdf_yarn}"
+      print_final_status "${want_node}" "${sys_node:-}" "${use_asdf_node}" "${want_yarn}" "${sys_yarn:-}" "${use_asdf_yarn}"
       return 0
     fi
 
@@ -353,7 +353,7 @@ main() {
     if require_cmd yarn; then sys_yarn="$(yarn -v 2>/dev/null || true)"; fi
   fi
 
-  print_final_status "${want_node}" "${sys_node}" "${use_asdf_node}" "${want_yarn}" "${sys_yarn}" "${use_asdf_yarn}"
+  print_final_status "${want_node}" "${sys_node:-}" "${use_asdf_node}" "${want_yarn}" "${sys_yarn:-}" "${use_asdf_yarn}"
   return 0
 
 }
