@@ -16,6 +16,9 @@ const defaultAuthUser: AuthUser = {
 const defaultAuthTokens: AuthTokens = {
   accessToken: "mock-access-token",
   refreshToken: "mock-refresh-token",
+  tokenType: "Bearer",
+  expiresIn: 7_200,
+  createdAt: 1_701_610_002,
 };
 
 export const mockAuthUser: AuthUser = defaultAuthUser;
@@ -24,7 +27,6 @@ export const mockAccessToken = mockAuthTokens.accessToken;
 export const mockRefreshToken = mockAuthTokens.refreshToken ?? null;
 
 interface LoginSuccessOverrides {
-  user?: Partial<AuthUser>;
   tokens?: Partial<AuthTokens>;
 }
 
@@ -42,16 +44,14 @@ export function buildLoginSuccess(
   overrides: LoginSuccessOverrides = {},
 ) {
   const tokens = buildAuthTokens(overrides.tokens);
-  const user = buildAuthUser(overrides.user);
 
   return {
-    data: {
-      login: {
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken ?? null,
-        user,
-      },
-    },
+    access_token: tokens.accessToken,
+    refresh_token: tokens.refreshToken ?? null,
+    token_type: tokens.tokenType,
+    expires_in: tokens.expiresIn,
+    created_at: tokens.createdAt,
+    scope: "public",
   };
 }
 
@@ -59,21 +59,21 @@ export function buildRegisterSuccess(overrides: Partial<AuthUser> = {}) {
   const baseUser = buildAuthUser({ id: "user_124" });
 
   return {
-    data: {
-      register: {
-        user: { ...baseUser, ...overrides },
-      },
-    },
+    user: { ...baseUser, ...overrides },
   };
 }
 
 export function buildLogoutSuccess(success = true) {
   return {
-    data: {
-      logout: {
-        success,
-      },
-    },
+    success,
+  };
+}
+
+export function buildAuthError(message: string) {
+  return {
+    error: "invalid_request",
+    error_description: message,
+    errors: [{ message }],
   };
 }
 

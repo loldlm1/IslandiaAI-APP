@@ -1,8 +1,8 @@
-import { graphql, HttpResponse } from "msw";
+import { http, HttpResponse } from "msw";
 
 import type { LoginPayload, RegisterPayload } from "@/src/lib/auth/types";
 import {
-  buildErrorResponse,
+  buildAuthError,
   buildLoginSuccess,
   buildLogoutSuccess,
   buildRegisterSuccess,
@@ -15,38 +15,31 @@ export const mockAccessToken = factoryAccessToken;
 export const mockRefreshToken = factoryRefreshToken ?? undefined;
 export const mockUser = mockAuthUser;
 
-interface LoginVariables {
-  input: LoginPayload;
-}
-
-interface RegisterVariables {
-  input: RegisterPayload;
-}
-
 export const authHandlers = [
-  graphql.mutation<LoginVariables>("Login", async ({ variables }) => {
-    const { email, password } = variables.input;
+  http.post("*/oauth/token", async ({ request }) => {
+    const body = (await request.json()) as Partial<LoginPayload> & {
+      username?: string;
+    };
+    const password = body.password ?? "";
 
     if (password !== "password123") {
-      return HttpResponse.json(
-        buildErrorResponse("Invalid credentials"),
-        { status: 200 },
-      );
+      return HttpResponse.json(buildAuthError("Invalid credentials"), {
+        status: 401,
+      });
     }
 
-    return HttpResponse.json(
-      buildLoginSuccess({
-        user: { email },
-      }),
-    );
+    return HttpResponse.json(buildLoginSuccess(), { status: 200 });
   }),
-  graphql.mutation<RegisterVariables>("Register", async ({ variables }) => {
-    const { email, name } = variables.input;
+  http.post("*/users", async ({ request }) => {
+    const body = (await request.json()) as { user?: RegisterPayload };
+    const user = body.user ?? ({} as RegisterPayload);
+    const email = user.email ?? "";
+    const name = user.name ?? mockAuthUser.name;
 
     if (email === "taken@example.com") {
       return HttpResponse.json(
-        buildErrorResponse("Email is already registered"),
-        { status: 200 },
+        buildAuthError("Email is already registered"),
+        { status: 422 },
       );
     }
 
@@ -55,9 +48,10 @@ export const authHandlers = [
         email,
         name,
       }),
+      { status: 201 },
     );
   }),
-  graphql.mutation("Logout", async () => {
-    return HttpResponse.json(buildLogoutSuccess());
+  http.post("*/oauth/revoke", async () => {
+    return HttpResponse.json(buildLogoutSuccess(), { status: 200 });
   }),
 ];

@@ -11,7 +11,12 @@ jest.mock("./api", () => {
 
 import { authOptions } from "./nextAuthOptions";
 import { AuthRequestError, fetchViewer, login } from "./api";
-import { mockAccessToken, mockRefreshToken, mockUser } from "@/src/mocks/handlers/auth";
+import {
+  mockAccessToken,
+  mockRefreshToken,
+  mockUser,
+} from "@/src/mocks/handlers/auth";
+import { mockAuthTokens } from "@/tests/mocks/graphql";
 
 type AuthorizeFn = (credentials?: Record<string, unknown>) => Promise<unknown>;
 
@@ -42,13 +47,7 @@ describe("nextAuthOptions", () => {
   });
 
   it("authorizes a user with valid credentials", async () => {
-    loginMock.mockResolvedValue({
-      tokens: {
-        accessToken: mockAccessToken,
-        refreshToken: mockRefreshToken,
-      },
-      user: mockUser,
-    });
+    loginMock.mockResolvedValue(mockAuthTokens);
     fetchViewerMock.mockResolvedValue(mockUser);
 
     const authorize = getAuthorize();
@@ -79,13 +78,7 @@ describe("nextAuthOptions", () => {
   it("rethrows AuthRequestError from downstream calls", async () => {
     const downstreamError = new AuthRequestError("Viewer is unavailable");
 
-    loginMock.mockResolvedValue({
-      tokens: {
-        accessToken: mockAccessToken,
-        refreshToken: mockRefreshToken,
-      },
-      user: mockUser,
-    });
+    loginMock.mockResolvedValue(mockAuthTokens);
     fetchViewerMock.mockRejectedValue(downstreamError);
 
     const authorize = getAuthorize();

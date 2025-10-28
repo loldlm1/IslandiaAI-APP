@@ -23,19 +23,19 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-          const result = await login({
+          const tokens = await login({
             email: credentials.email,
             password: credentials.password,
           });
 
-          const viewer = await fetchViewer(result.tokens.accessToken);
+          const viewer = await fetchViewer(tokens.accessToken);
 
           return {
             id: viewer.id,
             name: viewer.name,
             email: viewer.email,
-            accessToken: result.tokens.accessToken,
-            refreshToken: result.tokens.refreshToken ?? undefined,
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken ?? undefined,
           };
         } catch (error) {
           if (error instanceof AuthRequestError) {
