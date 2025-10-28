@@ -7,6 +7,9 @@ export interface AuthUser {
 export interface AuthTokens {
   accessToken: string;
   refreshToken?: string | null;
+  tokenType: string;
+  expiresIn: number;
+  createdAt?: number;
 }
 
 export interface LoginPayload {
@@ -14,10 +17,7 @@ export interface LoginPayload {
   password: string;
 }
 
-export interface LoginResult {
-  tokens: AuthTokens;
-  user: AuthUser;
-}
+export type LoginResult = AuthTokens;
 
 export interface RegisterPayload {
   email: string;

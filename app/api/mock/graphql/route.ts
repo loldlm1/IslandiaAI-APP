@@ -2,9 +2,6 @@ import { NextRequest } from "next/server";
 
 import {
   buildErrorResponse,
-  buildLoginSuccess,
-  buildLogoutSuccess,
-  buildRegisterSuccess,
   buildUnauthorizedError,
   buildViewerSuccess,
   mockAccessToken,
@@ -24,47 +21,6 @@ export async function POST(request: NextRequest) {
   const operation = body.operationName;
 
   switch (operation) {
-    case "Login": {
-      const variables = body.variables as { input?: Record<string, unknown> };
-      const input = variables?.input as { email?: string; password?: string };
-      const email = input?.email ?? "";
-      const password = input?.password ?? "";
-
-      if (password !== "password123") {
-        return jsonResponse(buildErrorResponse("Invalid credentials"));
-      }
-
-      return jsonResponse(
-        buildLoginSuccess({
-          user: { email },
-        }),
-      );
-    }
-    case "Register": {
-      const variables = body.variables as { input?: Record<string, unknown> };
-      const input = variables?.input as {
-        email?: string;
-        name?: string;
-      };
-      const email = input?.email ?? "";
-      const name = input?.name ?? "";
-
-      if (email === "taken@example.com") {
-        return jsonResponse(
-          buildErrorResponse("Email is already registered"),
-        );
-      }
-
-      return jsonResponse(
-        buildRegisterSuccess({
-          email,
-          name,
-        }),
-      );
-    }
-    case "Logout": {
-      return jsonResponse(buildLogoutSuccess());
-    }
     case "Viewer": {
       const authHeader = request.headers.get("authorization");
 
@@ -79,7 +35,7 @@ export async function POST(request: NextRequest) {
         ? `Unhandled GraphQL operation: ${operation}`
         : "Missing GraphQL operation";
 
-      return jsonResponse(buildErrorResponse(message));
+      return jsonResponse(buildErrorResponse(message), { status: 400 });
     }
   }
 }

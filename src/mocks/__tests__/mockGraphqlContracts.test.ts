@@ -1,12 +1,15 @@
 import { NextRequest } from "next/server";
 
-import { POST } from "@/app/api/mock/graphql/route";
+import { POST as graphqlRoute } from "@/app/api/mock/graphql/route";
+import { POST as revokeRoute } from "@/app/oauth/revoke/route";
+import { POST as tokenRoute } from "@/app/oauth/token/route";
+import { POST as usersRoute } from "@/app/users/route";
 import type { RequestHandler } from "msw";
 
 import { handlers } from "@/src/mocks/handlers";
 import { mockAccessToken } from "@/src/mocks/handlers/auth";
 import {
-  buildErrorResponse,
+  buildAuthError,
   buildLoginSuccess,
   buildLogoutSuccess,
   buildRegisterSuccess,
@@ -16,10 +19,6 @@ import {
 
 const GRAPHQL_ENDPOINT = "http://mock.api/graphql";
 const GRAPHQL_DOCUMENTS: Record<string, string> = {
-  Login: "mutation Login($input: LoginInput!) { login(input: $input) { accessToken refreshToken user { id email name } } }",
-  Register:
-    "mutation Register($input: RegisterInput!) { register(input: $input) { user { id email name } } }",
-  Logout: "mutation Logout { logout { success } }",
   Viewer: "query Viewer { viewer { id email name } }",
 };
 
@@ -41,11 +40,29 @@ if (typeof (Response as typeof globalThis.Response & { json?: typeof Response.js
   };
 }
 
-type GraphQLHandler = RequestHandler & {
-  info: RequestHandler["info"] & {
-    operationName?: string | RegExp;
-  };
+type HttpHandler = RequestHandler & {
+  info: RequestHandler["info"] & { path?: string; method?: string };
 };
+
+type GraphQLHandler = RequestHandler & {
+  info: RequestHandler["info"] & { operationName?: string | RegExp };
+};
+
+function findHttpHandler(method: string, path: string): HttpHandler {
+  const handler = handlers.find(
+    (candidate): candidate is HttpHandler =>
+      "info" in candidate &&
+      candidate.info.method === method &&
+      typeof candidate.info.path === "string" &&
+      candidate.info.path.endsWith(path),
+  );
+
+  if (!handler) {
+    throw new Error(`Handler for ${method} ${path} was not found.`);
+  }
+
+  return handler;
+}
 
 function findGraphQLHandler(operationName: string): GraphQLHandler {
   const handler = handlers.find(
@@ -60,7 +77,35 @@ function findGraphQLHandler(operationName: string): GraphQLHandler {
   return handler;
 }
 
-async function executeHandler(
+async function executeHttpHandler(
+  method: string,
+  path: string,
+  body?: Record<string, unknown>,
+  headers: HeadersInit = {},
+) {
+  const handler = findHttpHandler(method, path);
+  const request = new Request(`http://mock.api${path}`, {
+    method,
+    headers: {
+      "content-type": "application/json",
+      ...headers,
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  const executionResult = await handler.run({
+    request,
+    requestId: `${method}-${path}`,
+  });
+
+  if (!executionResult?.response) {
+    throw new Error(`Handler for ${method} ${path} did not return a response.`);
+  }
+
+  return executionResult.response.json();
+}
+
+async function executeGraphQLHandler(
   operationName: string,
   body: Record<string, unknown> = {},
   headers: HeadersInit = {},
@@ -71,6 +116,7 @@ async function executeHandler(
   if (!query) {
     throw new Error(`Missing GraphQL document for operation "${operationName}".`);
   }
+
   const request = new Request(GRAPHQL_ENDPOINT, {
     method: "POST",
     headers: {
@@ -105,54 +151,34 @@ function createNextRequest(body: unknown, headers: HeadersInit = {}) {
   return requestLike as unknown as NextRequest;
 }
 
-describe("mock GraphQL contract parity", () => {
+describe("mock backend contract parity", () => {
   describe("MSW handlers", () => {
     it("returns the login success payload", async () => {
-      const payload = {
-        variables: {
-          input: {
-            email: "user@example.com",
-            password: "password123",
-          },
-        },
-      };
+      const result = await executeHttpHandler("POST", "/oauth/token", {
+        email: "user@example.com",
+        password: "password123",
+      });
 
-      const result = await executeHandler("Login", payload);
-
-      expect(result).toEqual(
-        buildLoginSuccess({
-          user: { email: "user@example.com" },
-        }),
-      );
+      expect(result).toEqual(buildLoginSuccess());
     });
 
     it("returns the login error envelope", async () => {
-      const payload = {
-        variables: {
-          input: {
-            email: "user@example.com",
-            password: "wrong",
-          },
-        },
-      };
+      const result = await executeHttpHandler("POST", "/oauth/token", {
+        email: "user@example.com",
+        password: "wrong",
+      });
 
-      const result = await executeHandler("Login", payload);
-
-      expect(result).toEqual(buildErrorResponse("Invalid credentials"));
+      expect(result).toEqual(buildAuthError("Invalid credentials"));
     });
 
     it("returns the register success payload", async () => {
-      const payload = {
-        variables: {
-          input: {
-            email: "new@example.com",
-            name: "New User",
-            password: "password123",
-          },
+      const result = await executeHttpHandler("POST", "/users", {
+        user: {
+          email: "new@example.com",
+          name: "New User",
+          password: "password123",
         },
-      };
-
-      const result = await executeHandler("Register", payload);
+      });
 
       expect(result).toEqual(
         buildRegisterSuccess({
@@ -163,31 +189,27 @@ describe("mock GraphQL contract parity", () => {
     });
 
     it("returns the register error envelope", async () => {
-      const payload = {
-        variables: {
-          input: {
-            email: "taken@example.com",
-            name: "Existing User",
-            password: "password123",
-          },
+      const result = await executeHttpHandler("POST", "/users", {
+        user: {
+          email: "taken@example.com",
+          name: "Existing User",
+          password: "password123",
         },
-      };
+      });
 
-      const result = await executeHandler("Register", payload);
-
-      expect(result).toEqual(
-        buildErrorResponse("Email is already registered"),
-      );
+      expect(result).toEqual(buildAuthError("Email is already registered"));
     });
 
     it("returns the logout success payload", async () => {
-      const result = await executeHandler("Logout");
+      const result = await executeHttpHandler("POST", "/oauth/revoke", {
+        token: mockAccessToken,
+      });
 
       expect(result).toEqual(buildLogoutSuccess());
     });
 
     it("returns the viewer success payload", async () => {
-      const result = await executeHandler(
+      const result = await executeGraphQLHandler(
         "Viewer",
         {},
         {
@@ -199,7 +221,7 @@ describe("mock GraphQL contract parity", () => {
     });
 
     it("returns the viewer unauthorized envelope", async () => {
-      const result = await executeHandler("Viewer");
+      const result = await executeGraphQLHandler("Viewer");
 
       expect(result).toEqual(buildUnauthorizedError());
     });
@@ -207,56 +229,30 @@ describe("mock GraphQL contract parity", () => {
 
   describe("Next.js route", () => {
     it("returns the login success payload", async () => {
-      const payload = {
-        operationName: "Login",
-        variables: {
-          input: {
-            email: "user@example.com",
-            password: "password123",
-          },
-        },
-      };
-
-      const response = await POST(createNextRequest(payload));
+      const response = await tokenRoute(
+        createNextRequest({ password: "password123" }),
+      );
       const result = await response.json();
 
-      expect(result).toEqual(
-        buildLoginSuccess({
-          user: { email: "user@example.com" },
-        }),
-      );
+      expect(result).toEqual(buildLoginSuccess());
     });
 
     it("returns the login error envelope", async () => {
-      const payload = {
-        operationName: "Login",
-        variables: {
-          input: {
-            email: "user@example.com",
-            password: "wrong",
-          },
-        },
-      };
-
-      const response = await POST(createNextRequest(payload));
+      const response = await tokenRoute(createNextRequest({ password: "wrong" }));
       const result = await response.json();
 
-      expect(result).toEqual(buildErrorResponse("Invalid credentials"));
+      expect(result).toEqual(buildAuthError("Invalid credentials"));
     });
 
     it("returns the register success payload", async () => {
-      const payload = {
-        operationName: "Register",
-        variables: {
-          input: {
+      const response = await usersRoute(
+        createNextRequest({
+          user: {
             email: "new@example.com",
             name: "New User",
-            password: "password123",
           },
-        },
-      };
-
-      const response = await POST(createNextRequest(payload));
+        }),
+      );
       const result = await response.json();
 
       expect(result).toEqual(
@@ -268,31 +264,21 @@ describe("mock GraphQL contract parity", () => {
     });
 
     it("returns the register error envelope", async () => {
-      const payload = {
-        operationName: "Register",
-        variables: {
-          input: {
+      const response = await usersRoute(
+        createNextRequest({
+          user: {
             email: "taken@example.com",
             name: "Existing User",
-            password: "password123",
           },
-        },
-      };
-
-      const response = await POST(createNextRequest(payload));
+        }),
+      );
       const result = await response.json();
 
-      expect(result).toEqual(
-        buildErrorResponse("Email is already registered"),
-      );
+      expect(result).toEqual(buildAuthError("Email is already registered"));
     });
 
     it("returns the logout success payload", async () => {
-      const payload = {
-        operationName: "Logout",
-      };
-
-      const response = await POST(createNextRequest(payload));
+      const response = await revokeRoute(createNextRequest({ token: mockAccessToken }));
       const result = await response.json();
 
       expect(result).toEqual(buildLogoutSuccess());
@@ -303,7 +289,7 @@ describe("mock GraphQL contract parity", () => {
         operationName: "Viewer",
       };
 
-      const response = await POST(
+      const response = await graphqlRoute(
         createNextRequest(payload, {
           authorization: `Bearer ${mockAccessToken}`,
         }),
@@ -313,20 +299,15 @@ describe("mock GraphQL contract parity", () => {
       expect(result).toEqual(buildViewerSuccess());
     });
 
-    it("shares the unauthorized viewer envelope with MSW", async () => {
+    it("returns the viewer unauthorized envelope", async () => {
       const payload = {
         operationName: "Viewer",
       };
 
-      const [handlerResult, response] = await Promise.all([
-        executeHandler("Viewer", payload),
-        POST(createNextRequest(payload)),
-      ]);
-      const routeResult = await response.json();
+      const response = await graphqlRoute(createNextRequest(payload));
+      const result = await response.json();
 
-      expect(handlerResult).toEqual(buildUnauthorizedError());
-      expect(routeResult).toEqual(buildUnauthorizedError());
-      expect(routeResult).toEqual(handlerResult);
+      expect(result).toEqual(buildUnauthorizedError());
     });
   });
 });
