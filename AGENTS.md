@@ -13,6 +13,10 @@
 3. Ensure `graphql/schema.graphql` matches the Rails snapshot; regenerate it when backend changes land (see “Schema sync”).
 4. Execute `yarn codegen` before working on GraphQL-dependent code.
 
+## Playwright prerequisites
+- Run `yarn playwright install` before `yarn test:e2e` to provision the bundled browsers.
+- Fresh containers also need system libraries. Prefer `yarn playwright install-deps`, or install the following packages via apt: `libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libxkbcommon0 libatspi2.0-0t64 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2t64` plus their transitive dependencies.
+
 ## Daily commands
 - `yarn dev` for the Next.js dev server.
 - `yarn lint` (fails on ESLint violations).
