@@ -14,8 +14,8 @@
 4. Execute `yarn codegen` before working on GraphQL-dependent code.
 
 ## Playwright prerequisites
-- Run `yarn playwright install` before `yarn test:e2e` to provision the bundled browsers.
-- Fresh containers also need system libraries. Prefer `yarn playwright install-deps`, or install the following packages via apt: `libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libxkbcommon0 libatspi2.0-0t64 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2t64` plus their transitive dependencies.
+- Run `yarn playwright install-deps` (fresh containers) followed by `yarn playwright install` before `yarn test:e2e` so the Playwright-managed browsers and their libraries are available.
+- If `yarn playwright install-deps` is unavailable, install the following packages via apt: `libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libxkbcommon0 libatspi2.0-0t64 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2t64` plus their transitive dependencies.
 
 ## Daily commands
 - `yarn dev` for the Next.js dev server.

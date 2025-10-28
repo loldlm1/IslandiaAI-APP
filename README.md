@@ -10,11 +10,14 @@ This package contains the Next.js interface for IslandiaAI. It consumes the Rail
 
 ## Quick start
 1. Clone this repository and run `yarn install`.
-2. Copy `.env.example` to `.env.local`, then set:
+2. Provision Playwright prerequisites (required before any E2E runs):
+   - `yarn playwright install-deps` – installs system libraries needed inside fresh containers.
+   - `yarn playwright install` – downloads the bundled browsers Playwright uses.
+3. Copy `.env.example` to `.env.local`, then set:
    - `NEXT_PUBLIC_GRAPHQL_URL` – the backend GraphQL endpoint (e.g., `http://localhost:3000/graphql`).
    - `GRAPHQL_SCHEMA_PATH=graphql/schema.graphql` – location of the shared SDL snapshot for code generation.
-3. Generate typed operations: `yarn codegen`.
-4. Launch the development server: `yarn dev`.
+4. Generate typed operations: `yarn codegen`.
+5. Launch the development server: `yarn dev`.
 
 ## Available scripts
 - `yarn dev` – Next.js dev server with hot reloading.
@@ -44,7 +47,7 @@ This package contains the Next.js interface for IslandiaAI. It consumes the Rail
 - Authentication coverage:
   - `app/(auth)/signin/SignInForm.test.tsx` and `app/(auth)/signup/SignUpForm.test.tsx` assert client-side validation, integration with NextAuth helpers, and redirects on success.
   - Tests rely on the shared MSW handlers registered in `src/mocks/handlers.ts`, which power both Jest and Playwright suites.
-- Playwright end-to-end journeys covering order creation, invoice lifecycle, magic submission uploads, and the new authentication flows in `tests/e2e/auth.spec.ts`.
+- Playwright end-to-end journeys covering order creation, invoice lifecycle, magic submission uploads, and the new authentication flows in `tests/e2e/auth.spec.ts`. Ensure browsers are provisioned via `yarn playwright install-deps` and `yarn playwright install` before running `yarn test:e2e`.
 - CI should execute `yarn codegen && yarn lint && yarn test && yarn test:e2e` before merge.
 
 ### Updating MSW fixtures
