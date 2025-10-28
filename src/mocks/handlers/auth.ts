@@ -2,10 +2,10 @@ import { graphql, HttpResponse } from "msw";
 
 import type { LoginPayload, RegisterPayload } from "@/src/lib/auth/types";
 
-const ACCESS_TOKEN = "mock-access-token";
-const REFRESH_TOKEN = "mock-refresh-token";
+export const mockAccessToken = "mock-access-token";
+export const mockRefreshToken = "mock-refresh-token";
 
-const baseUser = {
+export const mockUser = {
   id: "user_123",
   name: "Isla Innovator",
   email: "isla@example.com",
@@ -39,10 +39,10 @@ export const authHandlers = [
     return HttpResponse.json({
       data: {
         login: {
-          accessToken: ACCESS_TOKEN,
-          refreshToken: REFRESH_TOKEN,
+          accessToken: mockAccessToken,
+          refreshToken: mockRefreshToken,
           user: {
-            ...baseUser,
+            ...mockUser,
             email,
           },
         },
@@ -69,7 +69,7 @@ export const authHandlers = [
       data: {
         register: {
           user: {
-            ...baseUser,
+            ...mockUser,
             id: "user_124",
             email,
             name,
@@ -84,28 +84,6 @@ export const authHandlers = [
         logout: {
           success: true,
         },
-      },
-    });
-  }),
-  graphql.query("Viewer", async ({ request }) => {
-    const authHeader = request.headers.get("authorization");
-
-    if (!authHeader || !authHeader.includes(ACCESS_TOKEN)) {
-      return HttpResponse.json(
-        {
-          errors: [
-            {
-              message: "Unauthorized",
-            },
-          ],
-        },
-        { status: 200 },
-      );
-    }
-
-    return HttpResponse.json({
-      data: {
-        viewer: baseUser,
       },
     });
   }),

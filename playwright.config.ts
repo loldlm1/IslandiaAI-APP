@@ -1,6 +1,9 @@
 import { defineConfig } from "@playwright/test";
 
 const PORT = process.env.PORT ?? "43111";
+const GRAPHQL_URL =
+  process.env.NEXT_PUBLIC_GRAPHQL_URL ??
+  `http://127.0.0.1:${PORT}/api/mock/graphql`;
 
 export default defineConfig({
   testDir: "tests/e2e",
@@ -19,6 +22,7 @@ export default defineConfig({
     env: {
       NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET ?? "test-secret",
       NEXTAUTH_URL: `http://127.0.0.1:${PORT}`,
+      NEXT_PUBLIC_GRAPHQL_URL: GRAPHQL_URL,
     },
   },
 });
