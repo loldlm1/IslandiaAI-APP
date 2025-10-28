@@ -50,13 +50,14 @@ describe("auth API", () => {
   const mockGraphQLResponse = <TData>(
     json: TData,
     overrides: Partial<Response> = {},
-  ): Response =>
-    ({
+  ): Response => {
+    return {
       ok: true,
       status: 200,
       json: jest.fn().mockResolvedValue(json),
       ...overrides,
-    } as unknown as Response);
+    } as unknown as Response;
+  };
 
   it("logs in with the expected GraphQL payload and maps tokens and user", async () => {
     const payload: LoginPayload = {
