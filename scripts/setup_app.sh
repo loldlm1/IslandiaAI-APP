@@ -8,6 +8,8 @@ set -euo pipefail
 # - Prepares a Next.js toolchain
 
 REPO_ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. && pwd)"
+PLAYWRIGHT_INSTALL_DEPS_DISPLAY="yarn --cwd \"$REPO_ROOT_DIR\" playwright install-deps"
+PLAYWRIGHT_INSTALL_DISPLAY="yarn --cwd \"$REPO_ROOT_DIR\" playwright install"
 
 # Track failures for final report
 declare -a SETUP_FAILURES=()
@@ -264,23 +266,37 @@ EOF
 install_playwright_browsers() {
   if [[ "${SKIP_PLAYWRIGHT:-0}" == "1" ]]; then
     info "SKIP_PLAYWRIGHT=1 → skipping Playwright browser installation"
+    warn "Playwright browsers not provisioned. Run '${PLAYWRIGHT_INSTALL_DEPS_DISPLAY} && ${PLAYWRIGHT_INSTALL_DISPLAY}' when ready."
     PLAYWRIGHT_STATUS="skipped"
     return
   fi
 
-  if ! require_cmd node || ! require_cmd npm || ! require_cmd npx; then
-    warn "Node.js, npm, and npx must be available to install Playwright browsers"
-    SETUP_FAILURES+=("Playwright install skipped - Node.js/npm/npx unavailable")
+  local -a install_deps_cmd=(yarn --cwd "$REPO_ROOT_DIR" playwright install-deps)
+  local -a install_cmd=(yarn --cwd "$REPO_ROOT_DIR" playwright install)
+  local manual_cmd="${PLAYWRIGHT_INSTALL_DEPS_DISPLAY} && ${PLAYWRIGHT_INSTALL_DISPLAY}"
+
+  if ! require_cmd yarn; then
+    warn "Yarn must be available to install Playwright browsers"
+    warn "After installing Yarn, run '${manual_cmd}'."
+    SETUP_FAILURES+=("Playwright install skipped - Yarn unavailable; rerun: ${manual_cmd}")
     PLAYWRIGHT_STATUS="failed"
     return
   fi
 
+  if [[ ! -d "$REPO_ROOT_DIR/node_modules" ]]; then
+    warn "Project dependencies not installed (node_modules missing). Skipping Playwright browser installation."
+    warn "After running 'yarn install', run '${manual_cmd}'."
+    PLAYWRIGHT_STATUS="skipped"
+    return
+  fi
+
   info "Installing Playwright browsers (this may take a few minutes)..."
-  if npx --yes playwright install --with-deps; then
+  if "${install_deps_cmd[@]}" && "${install_cmd[@]}"; then
     PLAYWRIGHT_STATUS="installed"
   else
     warn "Playwright browser installation failed"
-    SETUP_FAILURES+=("Playwright install failed - review log output")
+    warn "After resolving the issues, run '${manual_cmd}' manually."
+    SETUP_FAILURES+=("Playwright install failed - rerun: ${manual_cmd}")
     PLAYWRIGHT_STATUS="failed"
   fi
 }
@@ -316,10 +332,10 @@ print_final_status() {
         echo "Playwright browsers and dependencies installed automatically."
         ;;
       skipped)
-        echo "Playwright installation skipped via SKIP_PLAYWRIGHT=1. Run 'npx --yes playwright install --with-deps' manually if needed."
+        echo "Playwright installation skipped. Run '${PLAYWRIGHT_INSTALL_DEPS_DISPLAY} && ${PLAYWRIGHT_INSTALL_DISPLAY}' once project dependencies are installed."
         ;;
       failed)
-        echo "Playwright installation encountered issues. After resolving them, run 'npx --yes playwright install --with-deps' manually."
+        echo "Playwright installation encountered issues. After resolving them, run '${PLAYWRIGHT_INSTALL_DEPS_DISPLAY} && ${PLAYWRIGHT_INSTALL_DISPLAY}' manually."
         ;;
       *)
         echo "Playwright installation status: ${PLAYWRIGHT_STATUS}."
