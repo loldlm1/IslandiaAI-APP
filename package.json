@@ -20,7 +20,8 @@
     "next": "16.0.0",
     "next-auth": "^4.24.12",
     "react": "19.2.0",
-    "react-dom": "19.2.0"
+    "react-dom": "19.2.0",
+    "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
     "@graphql-codegen/cli": "^5.0.2",
@@ -43,6 +44,7 @@
     "msw": "^2.6.1",
     "prettier": "^3.4.2",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "whatwg-fetch": "^3.6.20"
   }
 }

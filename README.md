@@ -41,8 +41,18 @@ This package contains the Next.js interface for IslandiaAI. It consumes the Rail
 
 ## Testing strategy
 - Jest + React Testing Library (with MSW) for components, hooks, and API adapters. Enforce ≥80% statement coverage.
-- Playwright end-to-end journeys covering order creation, invoice lifecycle, and magic submission uploads.
+- Authentication coverage:
+  - `app/(auth)/signin/SignInForm.test.tsx` and `app/(auth)/signup/SignUpForm.test.tsx` assert client-side validation, integration with NextAuth helpers, and redirects on success.
+  - Tests rely on the shared MSW handlers registered in `src/mocks/handlers.ts`, which power both Jest and Playwright suites.
+- Playwright end-to-end journeys covering order creation, invoice lifecycle, magic submission uploads, and the new authentication flows in `tests/e2e/auth.spec.ts`.
 - CI should execute `yarn codegen && yarn lint && yarn test && yarn test:e2e` before merge.
+
+### Updating MSW fixtures
+- Centralize GraphQL auth mocks in:
+  - `src/mocks/handlers/auth.ts` – login, register, and logout mutations.
+  - `src/mocks/handlers/dashboard.ts` – viewer query used for session bootstrapping.
+  - `app/api/mock/graphql/route.ts` – local GraphQL endpoint consumed during Playwright runs.
+- When backend auth contracts change, update the fixtures above, then re-run `yarn lint`, `yarn test`, and `yarn test:e2e` to confirm parity across component, integration, and E2E suites.
 
 ## Conventions
 - Use functional React components with hooks and co-located fragments.
