@@ -1,10 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 
 import {
+  buildErrorResponse,
+  buildLoginSuccess,
+  buildLogoutSuccess,
+  buildRegisterSuccess,
+  buildUnauthorizedError,
+  buildViewerSuccess,
   mockAccessToken,
-  mockRefreshToken,
-  mockUser,
-} from "@/src/mocks/handlers/auth";
+} from "@/tests/mocks/graphql";
 
 interface GraphQLRequest {
   operationName?: string;
@@ -12,7 +16,7 @@ interface GraphQLRequest {
 }
 
 function jsonResponse(body: unknown, init?: ResponseInit) {
-  return NextResponse.json(body, { status: 200, ...init });
+  return Response.json(body, { status: 200, ...init });
 }
 
 export async function POST(request: NextRequest) {
@@ -27,23 +31,14 @@ export async function POST(request: NextRequest) {
       const password = input?.password ?? "";
 
       if (password !== "password123") {
-        return jsonResponse({
-          errors: [{ message: "Invalid credentials" }],
-        });
+        return jsonResponse(buildErrorResponse("Invalid credentials"));
       }
 
-      return jsonResponse({
-        data: {
-          login: {
-            accessToken: mockAccessToken,
-            refreshToken: mockRefreshToken,
-            user: {
-              ...mockUser,
-              email,
-            },
-          },
-        },
-      });
+      return jsonResponse(
+        buildLoginSuccess({
+          user: { email },
+        }),
+      );
     }
     case "Register": {
       const variables = body.variables as { input?: Record<string, unknown> };
@@ -55,56 +50,36 @@ export async function POST(request: NextRequest) {
       const name = input?.name ?? "";
 
       if (email === "taken@example.com") {
-        return jsonResponse({
-          errors: [{ message: "Email is already registered" }],
-        });
+        return jsonResponse(
+          buildErrorResponse("Email is already registered"),
+        );
       }
 
-      return jsonResponse({
-        data: {
-          register: {
-            user: {
-              ...mockUser,
-              id: "user_124",
-              email,
-              name,
-            },
-          },
-        },
-      });
+      return jsonResponse(
+        buildRegisterSuccess({
+          email,
+          name,
+        }),
+      );
     }
     case "Logout": {
-      return jsonResponse({
-        data: {
-          logout: {
-            success: true,
-          },
-        },
-      });
+      return jsonResponse(buildLogoutSuccess());
     }
     case "Viewer": {
       const authHeader = request.headers.get("authorization");
 
       if (!authHeader || !authHeader.includes(mockAccessToken)) {
-        return jsonResponse({
-          errors: [{ message: "Unauthorized" }],
-        });
+        return jsonResponse(buildUnauthorizedError());
       }
 
-      return jsonResponse({
-        data: {
-          viewer: mockUser,
-        },
-      });
+      return jsonResponse(buildViewerSuccess());
     }
     default: {
       const message = operation
         ? `Unhandled GraphQL operation: ${operation}`
         : "Missing GraphQL operation";
 
-      return jsonResponse({
-        errors: [{ message }],
-      });
+      return jsonResponse(buildErrorResponse(message));
     }
   }
 }

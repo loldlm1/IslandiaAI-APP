@@ -1,28 +1,19 @@
 import { graphql, HttpResponse } from "msw";
 
-import { mockAccessToken, mockUser } from "./auth";
+import {
+  buildUnauthorizedError,
+  buildViewerSuccess,
+  mockAccessToken,
+} from "@/tests/mocks/graphql";
 
 export const dashboardHandlers = [
   graphql.query("Viewer", async ({ request }) => {
     const authHeader = request.headers.get("authorization");
 
     if (!authHeader || !authHeader.includes(mockAccessToken)) {
-      return HttpResponse.json(
-        {
-          errors: [
-            {
-              message: "Unauthorized",
-            },
-          ],
-        },
-        { status: 200 },
-      );
+      return HttpResponse.json(buildUnauthorizedError(), { status: 200 });
     }
 
-    return HttpResponse.json({
-      data: {
-        viewer: mockUser,
-      },
-    });
+    return HttpResponse.json(buildViewerSuccess());
   }),
 ];
