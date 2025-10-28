@@ -4,7 +4,7 @@
 This package contains the Next.js interface for IslandiaAI. It consumes the Rails GraphQL API via generated TypeScript hooks so we can reach feature parity with the existing dashboard experience.
 
 ## Prerequisites
-- Node.js 20.17.0 (installable via `asdf install nodejs 20.17.0`)
+- Node.js 20.19.4 (installable via `asdf install nodejs 20.19.4`)
 - Yarn 1.22.22
 - Access to an IslandiaAI backend environment that exposes the GraphQL endpoint.
 

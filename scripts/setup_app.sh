@@ -227,7 +227,7 @@ ensure_tool_versions() {
   if [[ ! -f "$REPO_ROOT_DIR/.tool-versions" ]]; then
     warn ".tool-versions not found at $REPO_ROOT_DIR — creating with defaults"
     cat > "$REPO_ROOT_DIR/.tool-versions" <<'EOF'
-nodejs 20.17.0
+nodejs 20.19.4
 yarn 1.22.22
 EOF
   fi

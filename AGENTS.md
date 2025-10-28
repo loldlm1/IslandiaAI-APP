@@ -1,7 +1,7 @@
 # Agent Instructions
 
 ## Toolchain
-- Node.js 20.17.0 and Yarn 1.22.22 (install via `asdf install`).
+- Node.js 20.19.4 and Yarn 1.22.22 (install via `asdf install`).
 - Next.js 14 + TypeScript with the default `next lint` ruleset and Prettier formatting.
 - Prettier formatting uses the default 2-space indentation (`tabWidth: 2`). Configure your editor to match and to trim trailing whitespace on save (e.g., via EditorConfig `indent_size = 2` and `trim_trailing_whitespace = true`).
 
