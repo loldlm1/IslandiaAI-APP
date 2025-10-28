@@ -11,6 +11,7 @@ REPO_ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. && pwd)"
 
 # Track failures for final report
 declare -a SETUP_FAILURES=()
+PLAYWRIGHT_STATUS="not-run"
 
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || return 1
@@ -260,6 +261,30 @@ EOF
   fi
 }
 
+install_playwright_browsers() {
+  if [[ "${SKIP_PLAYWRIGHT:-0}" == "1" ]]; then
+    info "SKIP_PLAYWRIGHT=1 → skipping Playwright browser installation"
+    PLAYWRIGHT_STATUS="skipped"
+    return
+  fi
+
+  if ! require_cmd node || ! require_cmd npm || ! require_cmd npx; then
+    warn "Node.js, npm, and npx must be available to install Playwright browsers"
+    SETUP_FAILURES+=("Playwright install skipped - Node.js/npm/npx unavailable")
+    PLAYWRIGHT_STATUS="failed"
+    return
+  fi
+
+  info "Installing Playwright browsers (this may take a few minutes)..."
+  if npx --yes playwright install --with-deps; then
+    PLAYWRIGHT_STATUS="installed"
+  else
+    warn "Playwright browser installation failed"
+    SETUP_FAILURES+=("Playwright install failed - review log output")
+    PLAYWRIGHT_STATUS="failed"
+  fi
+}
+
 print_final_status() {
   local want_node=$1
   local sys_node=$2
@@ -276,6 +301,7 @@ print_final_status() {
   echo "[INFO] Runtime summary:"
   echo "  node: want=${want_node:-unset}, system=${sys_node:-none}, via=$([[ ${use_asdf_node:-1} -eq 0 ]] && echo system || echo asdf)"
   echo "  yarn: want=${want_yarn:-unset}, system=${sys_yarn:-none}, via=$([[ ${use_asdf_yarn:-1} -eq 0 ]] && echo system || echo asdf)"
+  echo "  playwright browsers: status=${PLAYWRIGHT_STATUS}"
   echo ""
 
   if (( ${#SETUP_FAILURES[@]} == 0 )); then
@@ -284,7 +310,21 @@ print_final_status() {
     echo "System dependencies installed. Next steps:"
     echo "  - Run yarn install"
     echo "  - Run yarn dev"
-    echo "  - Run npx playwright install"
+    echo ""
+    case "${PLAYWRIGHT_STATUS}" in
+      installed)
+        echo "Playwright browsers and dependencies installed automatically."
+        ;;
+      skipped)
+        echo "Playwright installation skipped via SKIP_PLAYWRIGHT=1. Run 'npx --yes playwright install --with-deps' manually if needed."
+        ;;
+      failed)
+        echo "Playwright installation encountered issues. After resolving them, run 'npx --yes playwright install --with-deps' manually."
+        ;;
+      *)
+        echo "Playwright installation status: ${PLAYWRIGHT_STATUS}."
+        ;;
+    esac
     echo ""
     echo "Note: Open a new shell or run 'source ~/.asdf/asdf.sh' if using asdf."
   else
@@ -338,20 +378,20 @@ main() {
   else
     if (( use_asdf_node == 0 && use_asdf_yarn == 0 )); then
       info "Node.js and Yarn already match .tool-versions; skipping asdf installation."
-      print_final_status "${want_node}" "${sys_node:-}" "${use_asdf_node}" "${want_yarn}" "${sys_yarn:-}" "${use_asdf_yarn}"
-      return 0
+    else
+      info "Using asdf for runtimes that don't match system versions"
+      ensure_asdf
+      # shellcheck source=/dev/null
+      . "$HOME/.asdf/asdf.sh"
+      ensure_asdf_plugins
+      ensure_tool_versions
+
+      if require_cmd node; then sys_node="$(node -v 2>/dev/null | sed 's/^v//')"; fi
+      if require_cmd yarn; then sys_yarn="$(yarn -v 2>/dev/null || true)"; fi
     fi
-
-    info "Using asdf for runtimes that don't match system versions"
-    ensure_asdf
-    # shellcheck source=/dev/null
-    . "$HOME/.asdf/asdf.sh"
-    ensure_asdf_plugins
-    ensure_tool_versions
-
-    if require_cmd node; then sys_node="$(node -v 2>/dev/null | sed 's/^v//')"; fi
-    if require_cmd yarn; then sys_yarn="$(yarn -v 2>/dev/null || true)"; fi
   fi
+
+  install_playwright_browsers
 
   print_final_status "${want_node}" "${sys_node:-}" "${use_asdf_node}" "${want_yarn}" "${sys_yarn:-}" "${use_asdf_yarn}"
   return 0
