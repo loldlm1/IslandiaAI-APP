@@ -7,7 +7,7 @@
     "yarn": "1.22.22"
   },
   "scripts": {
-    "dev": "next dev --port 43111",
+    "dev": "next dev --webpack --port 43111",
     "build": "next build",
     "start": "next start --port 43111",
     "lint": "eslint .",
@@ -27,6 +27,7 @@
     "@graphql-codegen/cli": "^5.0.2",
     "@graphql-codegen/client-preset": "^4.4.1",
     "@playwright/test": "^1.56.1",
+    "@svgr/webpack": "^8.1.0",
     "@tailwindcss/forms": "^0.5.10",
     "@tailwindcss/postcss": "^4",
     "@testing-library/dom": "^10.4.1",
