@@ -32,7 +32,7 @@ export default function SignOutContent() {
         setState("success");
         router.replace("/signin");
         router.refresh();
-      } catch (err) {
+      } catch {
         if (!isMounted) return;
         setState("error");
         setError("We couldn't complete your sign out. Please try again.");

@@ -8,7 +8,7 @@ import { EyeCloseIcon, EyeIcon } from "@tailadmin/icons";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { useCallback, useEffect, useState } from "react";
+import { startTransition, useCallback, useEffect, useState } from "react";
 
 const emailRegex = /.+@.+\..+/;
 
@@ -40,12 +40,15 @@ export default function SignInForm() {
   const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
 
   useEffect(() => {
-    setError(mapError(searchParams.get("error")));
-    setSuccess(
-      searchParams.get("registered")
-        ? "Registration successful. Sign in to continue."
-        : null,
-    );
+    const nextError = mapError(searchParams.get("error"));
+    const nextSuccess = searchParams.get("registered")
+      ? "Registration successful. Sign in to continue."
+      : null;
+
+    startTransition(() => {
+      setError(nextError);
+      setSuccess(nextSuccess);
+    });
   }, [searchParams]);
 
   const validate = useCallback((email: string, password: string) => {
@@ -98,7 +101,7 @@ export default function SignInForm() {
 
         router.push(result?.url ?? callbackUrl);
         router.refresh();
-      } catch (err) {
+      } catch {
         setError("Something went wrong while signing you in. Please try again.");
         setIsSubmitting(false);
       }
