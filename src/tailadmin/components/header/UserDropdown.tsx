@@ -1,32 +1,87 @@
 "use client";
-import Link from "next/link";
-import React, { useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
+import { signOut, useSession } from "next-auth/react";
+
+import { logout } from "@/src/lib/auth/api";
+
 import AvatarText from "../ui/avatar/AvatarText";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 
 export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const { data: session, status } = useSession();
 
-function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
-  e.stopPropagation();
-  setIsOpen((prev) => !prev);
-}
+  const toggleDropdown = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
+      event.stopPropagation();
+      setIsOpen((prev) => !prev);
+    },
+    [],
+  );
 
-  function closeDropdown() {
+  const closeDropdown = useCallback(() => {
     setIsOpen(false);
-  }
+  }, []);
+
+  const userDisplayName = useMemo(() => {
+    if (status === "loading") {
+      return "Loading";
+    }
+
+    return session?.user?.name ?? session?.user?.email ?? "Account";
+  }, [session?.user?.email, session?.user?.name, status]);
+
+  const userEmail = useMemo(() => {
+    if (status === "loading") {
+      return "";
+    }
+
+    return session?.user?.email ?? "";
+  }, [session?.user?.email, status]);
+
+  const avatarLabel = session?.user?.name ?? session?.user?.email ?? "Account";
+
+  const handleSignOut = useCallback(async () => {
+    if (isSigningOut) {
+      return;
+    }
+
+    closeDropdown();
+    setIsSigningOut(true);
+
+    try {
+      const accessToken = session?.accessToken;
+      if (accessToken) {
+        await logout({ accessToken });
+      }
+    } catch (error) {
+      console.error("Failed to revoke session", error);
+    } finally {
+      await signOut({ callbackUrl: "/signin" });
+      setIsSigningOut(false);
+    }
+  }, [closeDropdown, isSigningOut, session?.accessToken]);
+
+  const signOutLabel = isSigningOut ? "Signing out..." : "Sign out";
+  const signOutClasses = isSigningOut
+    ? "opacity-60 pointer-events-none"
+    : "";
+
   return (
     <div className="relative">
       <button
-        onClick={toggleDropdown} 
+        onClick={toggleDropdown}
         className="flex items-center text-gray-700 dark:text-gray-400 dropdown-toggle"
       >
         <span className="mr-3 overflow-hidden rounded-full h-11 w-11">
-          <AvatarText name="Musharof Chowdhury" className="h-11 w-11" />
+          <AvatarText name={avatarLabel} className="h-11 w-11" />
         </span>
 
-        <span className="block mr-1 font-medium text-theme-sm">Musharof</span>
+        <span className="block mr-1 font-medium text-theme-sm">
+          {userDisplayName}
+        </span>
 
         <svg
           className={`stroke-gray-500 dark:stroke-gray-400 transition-transform duration-200 ${
@@ -55,10 +110,10 @@ function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
       >
         <div>
           <span className="block font-medium text-gray-700 text-theme-sm dark:text-gray-400">
-            Musharof Chowdhury
+            {userDisplayName}
           </span>
           <span className="mt-0.5 block text-theme-xs text-gray-500 dark:text-gray-400">
-            randomuser@pimjo.com
+            {userEmail}
           </span>
         </div>
 
@@ -85,14 +140,14 @@ function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
                   fill=""
                 />
               </svg>
-              Edit profile
+              Account
             </DropdownItem>
           </li>
           <li>
             <DropdownItem
               onItemClick={closeDropdown}
               tag="a"
-              href="/profile"
+              href="/settings"
               className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
             >
               <svg
@@ -110,7 +165,7 @@ function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
                   fill=""
                 />
               </svg>
-              Account settings
+              Preferences
             </DropdownItem>
           </li>
           <li>
@@ -139,9 +194,10 @@ function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
             </DropdownItem>
           </li>
         </ul>
-        <Link
-          href="/signin"
-          className="flex items-center gap-3 px-3 py-2 mt-3 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+        <DropdownItem
+          tag="button"
+          onClick={handleSignOut}
+          className={`flex items-center gap-3 px-3 py-2 mt-3 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300 ${signOutClasses}`}
         >
           <svg
             className="fill-gray-500 group-hover:fill-gray-700 dark:group-hover:fill-gray-300"
@@ -150,6 +206,7 @@ function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
             viewBox="0 0 24 24"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
           >
             <path
               fillRule="evenodd"
@@ -158,8 +215,8 @@ function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
               fill=""
             />
           </svg>
-          Sign out
-        </Link>
+          {signOutLabel}
+        </DropdownItem>
       </Dropdown>
     </div>
   );

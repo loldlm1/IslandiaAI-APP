@@ -1,44 +1,45 @@
 "use client";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  startTransition,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "@tailadmin/context/SidebarContext";
-import { ChevronDownIcon, GridIcon, HorizontaLDots, PlugInIcon } from "@tailadmin/icons";
+import { ChevronDownIcon, HorizontaLDots } from "@tailadmin/icons";
 import SidebarWidget from "@tailadmin/layouts/SidebarWidget";
 
-type NavItem = {
-  name: string;
-  icon: React.ReactNode;
-  path?: string;
-  subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
-};
+import {
+  type SidebarNavItem,
+  mainNavigation,
+  secondaryNavigation,
+} from "./navigation";
 
-const navItems: NavItem[] = [
-  {
-    icon: <GridIcon />,
-    name: "Dashboard",
-    path: "/dashboard",
-  },
-];
+interface AppSidebarProps {
+  mainItems?: SidebarNavItem[];
+  secondaryItems?: SidebarNavItem[];
+}
 
-const othersItems: NavItem[] = [
-  {
-    icon: <PlugInIcon />,
-    name: "Authentication",
-    subItems: [
-      { name: "Sign In", path: "/signin", pro: false },
-      { name: "Sign Up", path: "/signup", pro: false },
-    ],
-  },
-];
-
-const AppSidebar: React.FC = () => {
+const AppSidebar: React.FC<AppSidebarProps> = ({
+  mainItems = mainNavigation,
+  secondaryItems = secondaryNavigation,
+}) => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const pathname = usePathname();
 
+  const sidebarWidthClass =
+    isExpanded || isMobileOpen
+      ? "w-[290px]"
+      : isHovered
+        ? "w-[290px]"
+        : "w-[90px]";
+
   const renderMenuItems = (
-    navItems: NavItem[],
+    navItems: SidebarNavItem[],
     menuType: "main" | "others"
   ) => (
     <ul className="flex flex-col gap-4">
@@ -172,21 +173,22 @@ const AppSidebar: React.FC = () => {
   );
   const subMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  // const isActive = (path: string) => path === pathname;
-   const isActive = useCallback((path: string) => path === pathname, [pathname]);
+  const isActive = useCallback((path: string) => path === pathname, [pathname]);
 
   useEffect(() => {
     // Check if the current path matches any submenu item
     let submenuMatched = false;
     ["main", "others"].forEach((menuType) => {
-      const items = menuType === "main" ? navItems : othersItems;
+      const items = menuType === "main" ? mainItems : secondaryItems;
       items.forEach((nav, index) => {
         if (nav.subItems) {
           nav.subItems.forEach((subItem) => {
             if (isActive(subItem.path)) {
-              setOpenSubmenu({
-                type: menuType as "main" | "others",
-                index,
+              startTransition(() => {
+                setOpenSubmenu({
+                  type: menuType as "main" | "others",
+                  index,
+                });
               });
               submenuMatched = true;
             }
@@ -195,11 +197,12 @@ const AppSidebar: React.FC = () => {
       });
     });
 
-    // If no submenu item matches, close the open submenu
-    if (!submenuMatched) {
-      setOpenSubmenu(null);
+    if (!submenuMatched && openSubmenu !== null) {
+      startTransition(() => {
+        setOpenSubmenu(null);
+      });
     }
-  }, [pathname,isActive]);
+  }, [isActive, mainItems, openSubmenu, secondaryItems]);
 
   useEffect(() => {
     // Set the height of the submenu items when the submenu is opened
@@ -230,13 +233,7 @@ const AppSidebar: React.FC = () => {
   return (
     <aside
       className={`fixed mt-16 flex flex-col lg:mt-0 top-0 px-5 left-0 bg-white dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-screen transition-all duration-300 ease-in-out z-50 border-r border-gray-200 
-        ${
-          isExpanded || isMobileOpen
-            ? "w-[290px]"
-            : isHovered
-            ? "w-[290px]"
-            : "w-[90px]"
-        }
+        ${sidebarWidthClass}
         ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}
         lg:translate-x-0`}
       onMouseEnter={() => !isExpanded && setIsHovered(true)}
@@ -292,7 +289,7 @@ const AppSidebar: React.FC = () => {
                   <HorizontaLDots />
                 )}
               </h2>
-              {renderMenuItems(navItems, "main")}
+              {renderMenuItems(mainItems, "main")}
             </div>
 
             <div className="">
@@ -309,7 +306,7 @@ const AppSidebar: React.FC = () => {
                   <HorizontaLDots />
                 )}
               </h2>
-              {renderMenuItems(othersItems, "others")}
+              {renderMenuItems(secondaryItems, "others")}
             </div>
           </div>
         </nav>
