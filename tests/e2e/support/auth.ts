@@ -79,6 +79,16 @@ async function registerAccount(credentials: SignInCredentials): Promise<void> {
   }
 }
 
+export async function registerAccountForE2E(
+  credentials: SignInCredentials,
+): Promise<void> {
+  if (!isUsingRealGraphQL()) {
+    return;
+  }
+
+  await registerAccount(credentials);
+}
+
 async function resolveSignInCredentials(): Promise<SignInCredentials> {
   if (!isUsingRealGraphQL()) {
     return {
