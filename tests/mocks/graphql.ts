@@ -46,12 +46,15 @@ export function buildLoginSuccess(
   const tokens = buildAuthTokens(overrides.tokens);
 
   return {
-    access_token: tokens.accessToken,
-    refresh_token: tokens.refreshToken ?? null,
-    token_type: tokens.tokenType,
-    expires_in: tokens.expiresIn,
-    created_at: tokens.createdAt,
-    scope: "public",
+    data: {
+      login: {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken ?? null,
+        tokenType: tokens.tokenType,
+        expiresIn: tokens.expiresIn,
+        createdAt: tokens.createdAt,
+      },
+    },
   };
 }
 
@@ -59,20 +62,26 @@ export function buildRegisterSuccess(overrides: Partial<AuthUser> = {}) {
   const baseUser = buildAuthUser({ id: "user_124" });
 
   return {
-    user: { ...baseUser, ...overrides },
+    data: {
+      registerUser: {
+        user: { ...baseUser, ...overrides },
+      },
+    },
   };
 }
 
 export function buildLogoutSuccess(success = true) {
   return {
-    success,
+    data: {
+      logout: {
+        success,
+      },
+    },
   };
 }
 
 export function buildAuthError(message: string) {
   return {
-    error: "invalid_request",
-    error_description: message,
     errors: [{ message }],
   };
 }

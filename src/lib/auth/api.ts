@@ -18,14 +18,6 @@ export const GRAPHQL_ENDPOINT =
 
 const JSON_HEADERS = { "Content-Type": "application/json" } as const;
 
-function resolveBackendUrl(pathname: string): string {
-  try {
-    return new URL(pathname, GRAPHQL_ENDPOINT).toString();
-  } catch {
-    return new URL(pathname, DEFAULT_GRAPHQL_ENDPOINT).toString();
-  }
-}
-
 interface GraphQLBody<TVariables> {
   query: string;
   variables?: TVariables;
@@ -81,81 +73,6 @@ async function parseJsonResponse<T>(response: Response): Promise<T | null> {
   }
 }
 
-function normalizeErrorDetails(body: unknown): GraphQLErrorResponse[] | undefined {
-  if (!body) {
-    return undefined;
-  }
-
-  if (typeof body === "string") {
-    return [{ message: body }];
-  }
-
-  if (Array.isArray(body)) {
-    return body
-      .map((entry) => {
-        if (typeof entry === "string") {
-          return entry;
-        }
-
-        if (entry && typeof entry === "object" && "message" in entry) {
-          return String((entry as { message?: unknown }).message ?? "");
-        }
-
-        return JSON.stringify(entry);
-      })
-      .filter((message) => message.length > 0)
-      .map((message) => ({ message }));
-  }
-
-  if (typeof body === "object") {
-    const messages = new Set<string>();
-    const record = body as Record<string, unknown>;
-
-    const addMessage = (value: unknown) => {
-      if (typeof value === "string" && value.trim()) {
-        messages.add(value);
-      }
-    };
-
-    addMessage(record.error_description);
-    addMessage(record.error);
-    addMessage(record.message);
-
-    if (Array.isArray(record.errors)) {
-      record.errors.forEach((value) => {
-        if (typeof value === "string") {
-          messages.add(value);
-        } else if (value && typeof value === "object" && "message" in value) {
-          addMessage((value as { message?: unknown }).message);
-        } else {
-          messages.add(JSON.stringify(value));
-        }
-      });
-    } else if (record.errors && typeof record.errors === "object") {
-      Object.entries(record.errors as Record<string, unknown>).forEach(
-        ([key, value]) => {
-          if (Array.isArray(value)) {
-            value.forEach((entry) => {
-              if (typeof entry === "string" && entry.trim()) {
-                messages.add(`${key} ${entry}`.trim());
-              } else if (entry) {
-                messages.add(`${key} ${JSON.stringify(entry)}`.trim());
-              }
-            });
-          } else if (typeof value === "string") {
-            messages.add(`${key} ${value}`.trim());
-          }
-        },
-      );
-    }
-
-    if (messages.size) {
-      return Array.from(messages).map((message) => ({ message }));
-    }
-  }
-
-  return undefined;
-}
 
 async function requestGraphQL<TData, TVariables = Record<string, unknown>>(
   body: GraphQLBody<TVariables>,
@@ -196,130 +113,118 @@ async function requestGraphQL<TData, TVariables = Record<string, unknown>>(
   return json.data;
 }
 
-interface OAuthTokenResponse {
-  access_token?: string;
-  refresh_token?: string | null;
-  token_type?: string;
-  expires_in?: number;
-  created_at?: number;
-  scope?: string;
+interface LoginMutationResult {
+  login?: {
+    accessToken?: string;
+    refreshToken?: string | null;
+    tokenType?: string;
+    expiresIn?: number;
+    createdAt?: number;
+  } | null;
 }
 
+interface LoginMutationVariables {
+  input: {
+    email: string;
+    password: string;
+  };
+}
+
+const LOGIN_MUTATION = /* GraphQL */ `
+  mutation Login($input: LoginInput!) {
+    login(input: $input) {
+      accessToken
+      refreshToken
+      tokenType
+      expiresIn
+      createdAt
+    }
+  }
+`;
+
 export async function login(payload: LoginPayload): Promise<LoginResult> {
-  const response = await fetch(resolveBackendUrl("/oauth/token"), {
-    method: "POST",
-    headers: JSON_HEADERS,
-    body: JSON.stringify({
-      grant_type: "password",
-      username: payload.email,
-      email: payload.email,
-      password: payload.password,
-    }),
-    cache: "no-store",
+  const data = await requestGraphQL<LoginMutationResult, LoginMutationVariables>({
+    operationName: "Login",
+    query: LOGIN_MUTATION,
+    variables: {
+      input: {
+        email: payload.email,
+        password: payload.password,
+      },
+    },
   });
 
-  const body = await parseJsonResponse<OAuthTokenResponse | Record<string, unknown>>(
-    response,
-  );
+  const tokens = data.login;
 
-  if (!response.ok) {
-    const details = normalizeErrorDetails(body ?? undefined);
-    throw new AuthRequestError(
-      details?.[0]?.message ?? "Authentication request failed",
-      {
-        status: response.status,
-        details,
-      },
-    );
+  if (!tokens || typeof tokens.accessToken !== "string") {
+    throw new AuthRequestError("Authentication response did not include an access token");
   }
 
-  if (!body || typeof body !== "object") {
-    throw new AuthRequestError("Authentication response did not include data", {
-      status: response.status,
-    });
+  if (typeof tokens.tokenType !== "string") {
+    throw new AuthRequestError("Authentication response did not include the token type");
   }
 
-  const tokenBody = body as OAuthTokenResponse;
-
-  if (typeof tokenBody.access_token !== "string") {
-    throw new AuthRequestError(
-      "Authentication response did not include an access token",
-      { status: response.status },
-    );
-  }
-
-  if (typeof tokenBody.token_type !== "string") {
-    throw new AuthRequestError(
-      "Authentication response did not include the token type",
-      { status: response.status },
-    );
-  }
-
-  if (typeof tokenBody.expires_in !== "number") {
+  if (typeof tokens.expiresIn !== "number") {
     throw new AuthRequestError(
       "Authentication response did not include the token expiration",
-      { status: response.status },
     );
   }
 
   return {
-    accessToken: tokenBody.access_token,
-    refreshToken: tokenBody.refresh_token ?? null,
-    tokenType: tokenBody.token_type,
-    expiresIn: tokenBody.expires_in,
-    createdAt: tokenBody.created_at,
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken ?? null,
+    tokenType: tokens.tokenType,
+    expiresIn: tokens.expiresIn,
+    createdAt: tokens.createdAt,
   };
 }
 
-interface RegisterSuccessResponse {
-  user?: AuthUser;
-  id?: string;
-  email?: string;
-  name?: string;
+interface RegisterMutationResult {
+  registerUser?: {
+    user?: AuthUser | null;
+  } | null;
 }
+
+interface RegisterMutationVariables {
+  input: {
+    email: string;
+    name: string;
+    password: string;
+    organizationName?: string;
+  };
+}
+
+const REGISTER_MUTATION = /* GraphQL */ `
+  mutation RegisterUser($input: RegisterUserInput!) {
+    registerUser(input: $input) {
+      user {
+        id
+        email
+        name
+      }
+    }
+  }
+`;
 
 export async function register(
   payload: RegisterPayload,
 ): Promise<RegisterResult> {
-  const response = await fetch(resolveBackendUrl("/users"), {
-    method: "POST",
-    headers: JSON_HEADERS,
-    body: JSON.stringify({
-      user: {
+  const data = await requestGraphQL<RegisterMutationResult, RegisterMutationVariables>({
+    operationName: "RegisterUser",
+    query: REGISTER_MUTATION,
+    variables: {
+      input: {
         email: payload.email,
         name: payload.name,
         password: payload.password,
         ...(payload.organizationName
-          ? { organization_name: payload.organizationName }
+          ? { organizationName: payload.organizationName }
           : {}),
       },
-    }),
-    cache: "no-store",
+    },
   });
 
-  const body = await parseJsonResponse<RegisterSuccessResponse | Record<string, unknown>>(
-    response,
-  );
-
-  if (!response.ok) {
-    const details = normalizeErrorDetails(body ?? undefined);
-    throw new AuthRequestError(
-      details?.[0]?.message ?? "Registration request failed",
-      {
-        status: response.status,
-        details,
-      },
-    );
-  }
-
-  if (!body || typeof body !== "object") {
-    throw new AuthRequestError("Registration response did not include data", {
-      status: response.status,
-    });
-  }
-
-  const registerBody = body as RegisterSuccessResponse;
-  const user = registerBody.user ?? registerBody;
+  const user = data.registerUser?.user;
 
   if (
     !user ||
@@ -327,50 +232,49 @@ export async function register(
     typeof user.email !== "string" ||
     typeof user.name !== "string"
   ) {
-    throw new AuthRequestError("Registration response did not include a user", {
-      status: response.status,
-    });
+    throw new AuthRequestError("Registration response did not include a user");
   }
 
   return { user };
 }
 
-interface LogoutResponseBody {
-  success?: boolean;
+interface LogoutMutationResult {
+  logout?: {
+    success?: boolean | null;
+  } | null;
 }
 
-export async function logout({ accessToken }: LogoutPayload = {}): Promise<LogoutResult> {
-  const response = await fetch(resolveBackendUrl("/oauth/revoke"), {
-    method: "POST",
-    headers: {
-      ...JSON_HEADERS,
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-    },
-    body: JSON.stringify({ token: accessToken ?? null }),
-    cache: "no-store",
-  });
+interface LogoutMutationVariables {
+  input?: {
+    token?: string | null;
+  };
+}
 
-  const body = await parseJsonResponse<LogoutResponseBody | Record<string, unknown>>(
-    response,
+const LOGOUT_MUTATION = /* GraphQL */ `
+  mutation Logout($input: LogoutInput!) {
+    logout(input: $input) {
+      success
+    }
+  }
+`;
+
+export async function logout({ accessToken }: LogoutPayload = {}): Promise<LogoutResult> {
+  const data = await requestGraphQL<LogoutMutationResult, LogoutMutationVariables>(
+    {
+      operationName: "Logout",
+      query: LOGOUT_MUTATION,
+      variables: {
+        input: {
+          token: accessToken ?? null,
+        },
+      },
+    },
+    { accessToken },
   );
 
-  if (!response.ok) {
-    const details = normalizeErrorDetails(body ?? undefined);
-    throw new AuthRequestError(details?.[0]?.message ?? "Logout request failed", {
-      status: response.status,
-      details,
-    });
-  }
+  const success = data.logout?.success;
 
-  if (!body) {
-    return { success: true };
-  }
-
-  if (typeof body === "object" && "success" in body) {
-    return { success: Boolean((body as LogoutResponseBody).success) };
-  }
-
-  return { success: true };
+  return { success: success ?? true };
 }
 
 const VIEWER_QUERY = /* GraphQL */ `
