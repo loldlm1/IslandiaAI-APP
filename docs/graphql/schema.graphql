@@ -1912,11 +1912,6 @@ input SignUpAttributesInput {
   Confirmation of the password for validation.
   """
   passwordConfirmation: String!
-
-  """
-  Role assigned to the account. Defaults to ADMIN.
-  """
-  userType: UserTypeEnum
 }
 
 """
@@ -2463,9 +2458,9 @@ type User implements Node & TimestampFields {
   updatedAt: ISO8601DateTime!
 
   """
-  Role controlling access within the application.
+  Role controlling access within the application. May be null when a role has not been assigned.
   """
-  userType: UserTypeEnum!
+  userType: UserTypeEnum
 }
 
 """
