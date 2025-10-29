@@ -1,17 +1,27 @@
-import { expect, test } from "@playwright/test";
-import type { Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
-async function completeSignIn(page: Page) {
-  await page.goto("/signin");
+import { buildSignUpErrors, buildSignUpSuccess } from "@/tests/mocks/graphql";
 
-  await page.getByLabel(/email/i).fill("isla@example.com");
-  await page.getByLabel(/^password/i).fill("password123");
-  await page.getByRole("button", { name: /sign in/i }).click();
+import { completeSignIn } from "./support/auth";
+import { mockGraphQLOperation } from "./support/graphql";
 
-  await page.waitForURL("**/dashboard", { timeout: 30000 });
-  await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {
-    // Network idle may not be reached if there are ongoing requests
-  });
+async function fillSignUpForm(
+  page: Page,
+  overrides: Partial<{ name: string; email: string; password: string; confirmPassword: string }> = {},
+) {
+  const name = overrides.name ?? "Jane Doe";
+  const email = overrides.email ?? `playwright+${Date.now()}@example.com`;
+  const password = overrides.password ?? "password123";
+  const confirmPassword = overrides.confirmPassword ?? password;
+
+  await page.goto("/signup");
+
+  await page.getByLabel(/full name/i).fill(name);
+  await page.getByLabel(/^email/i).fill(email);
+  await page.getByLabel(/^password/i).fill(password);
+  await page.getByLabel(/confirm password/i).fill(confirmPassword);
+
+  return { name, email, password, confirmPassword };
 }
 
 test.describe("authentication flows", () => {
@@ -38,5 +48,44 @@ test.describe("authentication flows", () => {
     await page.waitForURL("**/dashboard", { timeout: 30000 });
 
     await expect(page).toHaveURL(/\/dashboard$/, { timeout: 10000 });
+  });
+
+  test("registers a new account and redirects back to sign in", async ({ page }) => {
+    const { email, name } = await fillSignUpForm(page);
+    const teardown = await mockGraphQLOperation(page, "SignUp", {
+      body: buildSignUpSuccess({ email, name }),
+    });
+
+    try {
+      await page.getByRole("button", { name: /create account/i }).click();
+
+      await page.waitForURL("**/signin?registered=1", { timeout: 30000 });
+
+      await expect(page).toHaveURL(/\/signin\?registered=1$/);
+      await expect(
+        page.getByText("Registration successful. Sign in to continue."),
+      ).toBeVisible({ timeout: 10000 });
+    } finally {
+      await teardown();
+    }
+  });
+
+  test("surfaces GraphQL validation errors during registration", async ({ page }) => {
+    const teardown = await mockGraphQLOperation(page, "SignUp", {
+      body: buildSignUpErrors([
+        { message: "Email is already registered", path: ["attributes", "email"] },
+      ]),
+    });
+
+    try {
+      await fillSignUpForm(page, { email: "taken@example.com" });
+
+      await page.getByRole("button", { name: /create account/i }).click();
+
+      await expect(page).toHaveURL(/\/signup$/);
+      await expect(page.getByText("Email is already registered")).toBeVisible({ timeout: 10000 });
+    } finally {
+      await teardown();
+    }
   });
 });
