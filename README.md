@@ -16,6 +16,7 @@ This package contains the Next.js interface for IslandiaAI. It consumes the Rail
 3. Copy `.env.example` to `.env.local`, then set:
    - `NEXT_PUBLIC_GRAPHQL_URL` – the backend GraphQL endpoint (e.g., `http://localhost:3000/graphql`).
    - `GRAPHQL_SCHEMA_PATH=graphql/schema.graphql` – location of the shared SDL snapshot for code generation.
+   - `NEXTAUTH_SECRET` – secret used to sign NextAuth JWT/session cookies (generate a random string in production).
 4. Generate typed operations: `yarn codegen`.
 5. Launch the development server: `yarn dev`.
 
