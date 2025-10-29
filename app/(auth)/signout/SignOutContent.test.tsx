@@ -49,7 +49,7 @@ describe("SignOutContent", () => {
   }
 
   it("signs out successfully and redirects to sign in", async () => {
-    signOutMutationMock.mockResolvedValue({ user: null, userErrors: [] });
+    signOutMutationMock.mockResolvedValue({ user: null, userErrors: [], setCookies: [] });
     signOutMock.mockResolvedValue(undefined as never);
 
     renderComponent();
@@ -89,6 +89,7 @@ describe("SignOutContent", () => {
     signOutMutationMock.mockResolvedValue({
       user: null,
       userErrors: [{ message: "Session could not be closed", path: [] }],
+      setCookies: [],
     });
 
     renderComponent();

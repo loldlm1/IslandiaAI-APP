@@ -34,6 +34,11 @@ interface GraphQLRequestOptions {
   locale?: string | null;
 }
 
+interface GraphQLRequestResult<TData> {
+  data: TData;
+  setCookies: string[];
+}
+
 export class AuthRequestError extends Error {
   public readonly status?: number;
   public readonly details?: GraphQLErrorResponse[];
@@ -79,10 +84,67 @@ async function parseJsonResponse<T>(response: Response): Promise<T | null> {
 }
 
 
+function splitSetCookieHeader(header: string): string[] {
+  const cookies: string[] = [];
+  let current = "";
+
+  for (let index = 0; index < header.length; index += 1) {
+    const character = header[index];
+
+    if (character === ",") {
+      const remainder = header.slice(index + 1);
+      if (/^\s*[!#$%&'*+\-.^_`|~0-9A-Za-z]+=/.test(remainder)) {
+        if (current.trim()) {
+          cookies.push(current.trim());
+        }
+        current = "";
+        continue;
+      }
+    }
+
+    current += character;
+  }
+
+  if (current.trim()) {
+    cookies.push(current.trim());
+  }
+
+  return cookies;
+}
+
+function extractSetCookies(response: Response): string[] {
+  const headerStore = response.headers as unknown as {
+    getSetCookie?: () => string[];
+    raw?: () => Record<string, string[]>;
+  };
+
+  if (typeof headerStore.getSetCookie === "function") {
+    return headerStore.getSetCookie();
+  }
+
+  const rawHeaders = headerStore.raw?.();
+
+  if (rawHeaders) {
+    const setCookie = rawHeaders["set-cookie"] ?? rawHeaders["Set-Cookie"];
+    if (Array.isArray(setCookie)) {
+      return setCookie;
+    }
+  }
+
+  const header = response.headers.get("set-cookie");
+
+  if (!header) {
+    return [];
+  }
+
+  const parsed = splitSetCookieHeader(header);
+  return parsed.length > 0 ? parsed : [header];
+}
+
 async function requestGraphQL<TData, TVariables = Record<string, unknown>>(
   body: GraphQLBody<TVariables>,
   { headers, locale }: GraphQLRequestOptions = {},
-): Promise<TData> {
+): Promise<GraphQLRequestResult<TData>> {
   const requestLocale = normalizeLocale(locale ?? DEFAULT_LOCALE);
   const response = await fetch(GRAPHQL_ENDPOINT, {
     method: "POST",
@@ -99,6 +161,7 @@ async function requestGraphQL<TData, TVariables = Record<string, unknown>>(
   });
 
   const json = (await parseJsonResponse<GraphQLResponse<TData>>(response)) ?? {};
+  const setCookies = extractSetCookies(response);
 
   if (!response.ok) {
     throw new AuthRequestError("Authentication request failed", {
@@ -120,7 +183,7 @@ async function requestGraphQL<TData, TVariables = Record<string, unknown>>(
     });
   }
 
-  return json.data;
+  return { data: json.data, setCookies };
 }
 
 interface SignInMutationResult {
@@ -159,7 +222,10 @@ export async function signIn(
   payload: SignInPayload,
   options: { locale?: string | null } = {},
 ): Promise<SignInResult> {
-  const data = await requestGraphQL<SignInMutationResult, SignInMutationVariables>({
+  const { data, setCookies } = await requestGraphQL<
+    SignInMutationResult,
+    SignInMutationVariables
+  >({
     operationName: "SignIn",
     query: SIGN_IN_MUTATION,
     variables: {
@@ -181,6 +247,7 @@ export async function signIn(
   return {
     user: result.user ?? null,
     userErrors: result.userErrors ?? [],
+    setCookies,
   };
 }
 
@@ -222,7 +289,10 @@ export async function signUp(
   payload: SignUpPayload,
   options: { locale?: string | null } = {},
 ): Promise<SignUpResult> {
-  const data = await requestGraphQL<SignUpMutationResult, SignUpMutationVariables>({
+  const { data, setCookies } = await requestGraphQL<
+    SignUpMutationResult,
+    SignUpMutationVariables
+  >({
     operationName: "SignUp",
     query: SIGN_UP_MUTATION,
     variables: {
@@ -246,6 +316,7 @@ export async function signUp(
   return {
     user: result.user ?? null,
     userErrors: result.userErrors ?? [],
+    setCookies,
   };
 }
 
@@ -277,9 +348,12 @@ const SIGN_OUT_MUTATION = /* GraphQL */ `
 `;
 
 export async function signOut(
-  options: { locale?: string | null } = {},
+  options: { headers?: HeadersInit; locale?: string | null } = {},
 ): Promise<SignOutResult> {
-  const data = await requestGraphQL<SignOutMutationResult, SignOutMutationVariables>({
+  const { data, setCookies } = await requestGraphQL<
+    SignOutMutationResult,
+    SignOutMutationVariables
+  >({
     operationName: "SignOut",
     query: SIGN_OUT_MUTATION,
     variables: {
@@ -296,6 +370,7 @@ export async function signOut(
   return {
     user: result.user ?? null,
     userErrors: result.userErrors ?? [],
+    setCookies,
   };
 }
 
@@ -313,7 +388,7 @@ export async function fetchViewer({
   headers,
   locale,
 }: { headers?: HeadersInit; locale?: string | null } = {}): Promise<AuthUser | null> {
-  const data = await requestGraphQL<ViewerResult>(
+  const { data } = await requestGraphQL<ViewerResult>(
     {
       operationName: "Viewer",
       query: VIEWER_QUERY,

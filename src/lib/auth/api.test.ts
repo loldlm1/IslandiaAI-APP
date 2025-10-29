@@ -50,7 +50,7 @@ describe("auth API", () => {
         .mockImplementation(() =>
           overrides.text ? overrides.text() : Promise.resolve(JSON.stringify(body)),
         ),
-      headers: new Headers(overrides.headers),
+      headers: overrides.headers instanceof Headers ? overrides.headers : new Headers(overrides.headers),
       ...overrides,
     } as unknown as Response;
   };
@@ -98,7 +98,40 @@ describe("auth API", () => {
       },
     });
 
-    expect(result).toEqual({ user: userFixture, userErrors: [] });
+    expect(result).toEqual({ user: userFixture, userErrors: [], setCookies: [] });
+  });
+
+  it("returns authentication cookies from the sign-in response", async () => {
+    const payload: SignInPayload = {
+      email: "person@example.com",
+      password: "correct horse battery staple",
+    };
+
+    fetchMock.mockResolvedValue(
+      mockJsonResponse(
+        {
+          data: {
+            signIn: {
+              user: userFixture,
+              userErrors: [],
+            },
+          },
+        },
+        {
+          headers: new Headers([
+            ["set-cookie", "islandia_session=abc123; Path=/; HttpOnly"],
+            ["set-cookie", "refresh_token=xyz; Path=/"],
+          ]),
+        },
+      ),
+    );
+
+    const result = await signIn(payload);
+
+    expect(result.setCookies).toEqual([
+      "islandia_session=abc123; Path=/; HttpOnly",
+      "refresh_token=xyz; Path=/",
+    ]);
   });
 
   it("allows overriding the locale for sign-in requests", async () => {
@@ -138,7 +171,7 @@ describe("auth API", () => {
 
     const result = await signIn({ email: "person@example.com", password: "wrong" });
 
-    expect(result).toEqual({ user: null, userErrors });
+    expect(result).toEqual({ user: null, userErrors, setCookies: [] });
   });
 
   it("throws when the sign-in payload is missing", async () => {
@@ -186,7 +219,7 @@ describe("auth API", () => {
       },
     });
 
-    expect(result).toEqual({ user: userFixture, userErrors: [] });
+    expect(result).toEqual({ user: userFixture, userErrors: [], setCookies: [] });
   });
 
   it("exposes sign-up user errors", async () => {
@@ -212,7 +245,7 @@ describe("auth API", () => {
       passwordConfirmation: "secret",
     });
 
-    expect(result).toEqual({ user: null, userErrors });
+    expect(result).toEqual({ user: null, userErrors, setCookies: [] });
   });
 
   it("signs out using an empty input payload", async () => {
@@ -236,7 +269,7 @@ describe("auth API", () => {
     expect(body.locale).toBe(DEFAULT_LOCALE);
     expect(body.variables).toEqual({ input: {} });
 
-    expect(result).toEqual({ user: null, userErrors: [] });
+    expect(result).toEqual({ user: null, userErrors: [], setCookies: [] });
   });
 
   it("includes the overridden locale when signing out", async () => {
