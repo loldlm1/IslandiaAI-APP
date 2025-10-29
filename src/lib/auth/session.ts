@@ -14,7 +14,8 @@ export async function auth(): Promise<Session | null> {
   }
 
   try {
-    const cookieHeader = headers().get("cookie");
+    const headerStore = await headers();
+    const cookieHeader = headerStore.get("cookie");
     const locale = parseLocaleFromCookieHeader(cookieHeader);
     const viewer = await fetchViewer({
       headers: cookieHeader ? { cookie: cookieHeader } : undefined,
@@ -22,7 +23,7 @@ export async function auth(): Promise<Session | null> {
     });
 
     if (!viewer) {
-      return null;
+      return session;
     }
 
     return {
@@ -36,6 +37,6 @@ export async function auth(): Promise<Session | null> {
     } as Session;
   } catch (error) {
     console.error("Failed to load viewer from session", error);
-    return null;
+    return session;
   }
 }

@@ -1,0 +1,115 @@
+yarn run v1.22.22
+$ playwright test
+
+Running 5 tests using 1 worker
+
+     1 tests/e2e/auth.spec.ts:15:7 › authentication flows › signs in and lands on the dashboard
+[WebServer]  ⚠ Cross origin request detected from 127.0.0.1 to /_next/* resource. In a future major version of Next.js, you will need to explicitly configure "allowedDevOrigins" in next.config to allow this.
+[WebServer] Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+[WebServer] Failed to load viewer from session Error [AuthRequestError]: Unauthorized
+[WebServer]     at requestGraphQL (src/lib/auth/api.ts:111:11)
+[WebServer]     at async fetchViewer (src/lib/auth/api.ts:316:16)
+[WebServer]     at async auth (src/lib/auth/session.ts:20:20)
+[WebServer]     at async ProtectedLayout (src/app/(dashboard)/layout.tsx:15:19)
+[WebServer]   109 |   if (json.errors?.length) {
+[WebServer] > 111 |     throw new AuthRequestError(json.errors[0]?.message ?? "Unexpected error", {
+[WebServer]       |           ^
+[WebServer]   112 |       status: response.status,
+[WebServer]   113 |       details: json.errors,
+[WebServer]   114 |     }); {
+[WebServer]   status: 200,
+[WebServer]   details: [Array]
+[WebServer] }
+  ✓  1 tests/e2e/auth.spec.ts:15:7 › authentication flows › signs in and lands on the dashboard (18.4s)
+[WebServer] Failed to load viewer from session Error [AuthRequestError]: Unauthorized
+[WebServer]     at requestGraphQL (src/lib/auth/api.ts:111:11)
+[WebServer]     at async fetchViewer (src/lib/auth/api.ts:316:16)
+[WebServer]     at async auth (src/lib/auth/session.ts:20:20)
+[WebServer]     at async ProtectedLayout (src/app/(dashboard)/layout.tsx:15:19)
+[WebServer]   109 |   if (json.errors?.length) {
+[WebServer] > 111 |     throw new AuthRequestError(json.errors[0]?.message ?? "Unexpected error", {
+[WebServer]       |           ^
+[WebServer]   112 |       status: response.status,
+[WebServer]   113 |       details: json.errors,
+[WebServer]   114 |     }); {
+[WebServer]   status: 200,
+[WebServer]   details: [Array]
+[WebServer] }
+[WebServer]  ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+  ✓  2 tests/e2e/auth.spec.ts:22:7 › authentication flows › signs out and returns to the sign-in page (11.9s)
+[WebServer] Failed to load viewer from session Error [AuthRequestError]: Unauthorized
+[WebServer]     at requestGraphQL (src/lib/auth/api.ts:111:11)
+[WebServer]     at async fetchViewer (src/lib/auth/api.ts:316:16)
+[WebServer]     at async auth (src/lib/auth/session.ts:20:20)
+[WebServer]     at async ProtectedLayout (src/app/(dashboard)/layout.tsx:15:19)
+[WebServer]   109 |   if (json.errors?.length) {
+[WebServer] > 111 |     throw new AuthRequestError(json.errors[0]?.message ?? "Unexpected error", {
+[WebServer]       |           ^
+[WebServer]   112 |       status: response.status,
+[WebServer]   113 |       details: json.errors,
+[WebServer]   114 |     }); {
+[WebServer]   status: 200,
+[WebServer]   details: [Array]
+[WebServer] }
+[WebServer] Failed to load viewer from session Error [AuthRequestError]: Unauthorized
+[WebServer]     at requestGraphQL (src/lib/auth/api.ts:111:11)
+[WebServer]     at async fetchViewer (src/lib/auth/api.ts:316:16)
+[WebServer]     at async auth (src/lib/auth/session.ts:20:20)
+[WebServer]     at async ProtectedLayout (src/app/(dashboard)/layout.tsx:15:19)
+[WebServer]   109 |   if (json.errors?.length) {
+[WebServer] > 111 |     throw new AuthRequestError(json.errors[0]?.message ?? "Unexpected error", {
+[WebServer]       |           ^
+[WebServer]   112 |       status: response.status,
+[WebServer]   113 |       details: json.errors,
+[WebServer]   114 |     }); {
+[WebServer]   status: 200,
+[WebServer]   details: [Array]
+[WebServer] }
+[WebServer] Failed to load viewer from session Error [AuthRequestError]: Unauthorized
+[WebServer]     at requestGraphQL (src/lib/auth/api.ts:111:11)
+[WebServer]     at async fetchViewer (src/lib/auth/api.ts:316:16)
+[WebServer]     at async auth (src/lib/auth/session.ts:20:20)
+[WebServer]     at async ProtectedLayout (src/app/(dashboard)/layout.tsx:15:19)
+[WebServer]   109 |   if (json.errors?.length) {
+[WebServer] > 111 |     throw new AuthRequestError(json.errors[0]?.message ?? "Unexpected error", {
+[WebServer]       |           ^
+[WebServer]   112 |       status: response.status,
+[WebServer]   113 |       details: json.errors,
+[WebServer]   114 |     }); {
+[WebServer]   status: 200,
+[WebServer]   details: [Array]
+[WebServer] }
+  ✓  3 tests/e2e/auth.spec.ts:31:7 › authentication flows › redirects authenticated users away from the sign-in form (10.1s)
+  ✓  4 tests/e2e/dashboard.spec.ts:4:7 › dashboard access control › redirects unauthenticated users to sign in (3.5s)
+[WebServer] Failed to load viewer from session Error [AuthRequestError]: Unauthorized
+[WebServer]     at requestGraphQL (src/lib/auth/api.ts:111:11)
+[WebServer]     at async fetchViewer (src/lib/auth/api.ts:316:16)
+[WebServer]     at async auth (src/lib/auth/session.ts:20:20)
+[WebServer]     at async ProtectedLayout (src/app/(dashboard)/layout.tsx:15:19)
+[WebServer]   109 |   if (json.errors?.length) {
+[WebServer] > 111 |     throw new AuthRequestError(json.errors[0]?.message ?? "Unexpected error", {
+[WebServer]       |           ^
+[WebServer]   112 |       status: response.status,
+[WebServer]   113 |       details: json.errors,
+[WebServer]   114 |     }); {
+[WebServer]   status: 200,
+[WebServer]   details: [Array]
+[WebServer] }
+[WebServer] Failed to load viewer from session Error [AuthRequestError]: Unauthorized
+[WebServer]     at requestGraphQL (src/lib/auth/api.ts:111:11)
+[WebServer]     at async fetchViewer (src/lib/auth/api.ts:316:16)
+[WebServer]     at async auth (src/lib/auth/session.ts:20:20)
+[WebServer]     at async ProtectedLayout (src/app/(dashboard)/layout.tsx:15:19)
+[WebServer]   109 |   if (json.errors?.length) {
+[WebServer] > 111 |     throw new AuthRequestError(json.errors[0]?.message ?? "Unexpected error", {
+[WebServer]       |           ^
+[WebServer]   112 |       status: response.status,
+[WebServer]   113 |       details: json.errors,
+[WebServer]   114 |     }); {
+[WebServer]   status: 200,
+[WebServer]   details: [Array]
+[WebServer] }
+  ✓  5 tests/e2e/locale.spec.ts:51:7 › locale propagation › updates GraphQL requests when the UI locale changes (16.7s)
+
+  5 passed (1.3m)
+Done in 79.65s.
