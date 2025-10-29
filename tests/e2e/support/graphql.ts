@@ -24,7 +24,7 @@ export async function mockGraphQLOperation(
   operationName: string,
   { body, headers, status = 200 }: MockGraphQLOperationOptions,
 ): Promise<MockTeardown> {
-  if (!isUsingRealGraphQL()) {
+  if (isUsingRealGraphQL()) {
     return async () => {};
   }
 
@@ -71,4 +71,33 @@ export async function mockGraphQLOperation(
   return async () => {
     await page.unroute(graphqlUrl, handler);
   };
+}
+
+export function waitForGraphQLRequest(
+  page: Page,
+  operationName: string,
+): Promise<Request> {
+  const graphqlUrl = resolveGraphQLEndpoint();
+
+  return page.waitForRequest((request) => {
+    if (request.url() !== graphqlUrl) {
+      return false;
+    }
+
+    if (request.method() !== "POST") {
+      return false;
+    }
+
+    const rawBody = request.postData();
+    if (!rawBody) {
+      return false;
+    }
+
+    try {
+      const payload = JSON.parse(rawBody) as { operationName?: string };
+      return payload.operationName === operationName;
+    } catch {
+      return false;
+    }
+  });
 }
