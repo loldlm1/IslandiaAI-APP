@@ -18,6 +18,7 @@ const SESSION_COOKIE_VALUE = "mock-session";
 interface GraphQLRequest {
   operationName?: string;
   variables?: Record<string, unknown>;
+  locale?: string;
 }
 
 function jsonResponse(body: unknown, init?: ResponseInit) {

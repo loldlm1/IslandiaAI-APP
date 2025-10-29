@@ -8,6 +8,8 @@ import {
   type SignUpResult,
   type ViewerResult,
 } from "./types";
+import { DEFAULT_LOCALE } from "@/src/lib/locale/constants";
+import { normalizeLocale } from "@/src/lib/locale/utils";
 
 const DEFAULT_GRAPHQL_ENDPOINT = "http://localhost:4000/graphql";
 
@@ -25,6 +27,11 @@ interface GraphQLBody<TVariables> {
 interface GraphQLResponse<TData> {
   data?: TData;
   errors?: GraphQLErrorResponse[];
+}
+
+interface GraphQLRequestOptions {
+  headers?: HeadersInit;
+  locale?: string | null;
 }
 
 export class AuthRequestError extends Error {
@@ -74,15 +81,19 @@ async function parseJsonResponse<T>(response: Response): Promise<T | null> {
 
 async function requestGraphQL<TData, TVariables = Record<string, unknown>>(
   body: GraphQLBody<TVariables>,
-  { headers }: { headers?: HeadersInit } = {},
+  { headers, locale }: GraphQLRequestOptions = {},
 ): Promise<TData> {
+  const requestLocale = normalizeLocale(locale ?? DEFAULT_LOCALE);
   const response = await fetch(GRAPHQL_ENDPOINT, {
     method: "POST",
     headers: {
       ...JSON_HEADERS,
       ...headers,
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      ...body,
+      locale: requestLocale,
+    }),
     cache: "no-store",
     credentials: "include",
   });
@@ -144,7 +155,10 @@ const SIGN_IN_MUTATION = /* GraphQL */ `
   }
 `;
 
-export async function signIn(payload: SignInPayload): Promise<SignInResult> {
+export async function signIn(
+  payload: SignInPayload,
+  options: { locale?: string | null } = {},
+): Promise<SignInResult> {
   const data = await requestGraphQL<SignInMutationResult, SignInMutationVariables>({
     operationName: "SignIn",
     query: SIGN_IN_MUTATION,
@@ -156,7 +170,7 @@ export async function signIn(payload: SignInPayload): Promise<SignInResult> {
         },
       },
     },
-  });
+  }, options);
 
   const result = data.signIn;
 
@@ -204,7 +218,10 @@ const SIGN_UP_MUTATION = /* GraphQL */ `
   }
 `;
 
-export async function signUp(payload: SignUpPayload): Promise<SignUpResult> {
+export async function signUp(
+  payload: SignUpPayload,
+  options: { locale?: string | null } = {},
+): Promise<SignUpResult> {
   const data = await requestGraphQL<SignUpMutationResult, SignUpMutationVariables>({
     operationName: "SignUp",
     query: SIGN_UP_MUTATION,
@@ -218,7 +235,7 @@ export async function signUp(payload: SignUpPayload): Promise<SignUpResult> {
         },
       },
     },
-  });
+  }, options);
 
   const result = data.signUp;
 
@@ -259,14 +276,16 @@ const SIGN_OUT_MUTATION = /* GraphQL */ `
   }
 `;
 
-export async function signOut(): Promise<SignOutResult> {
+export async function signOut(
+  options: { locale?: string | null } = {},
+): Promise<SignOutResult> {
   const data = await requestGraphQL<SignOutMutationResult, SignOutMutationVariables>({
     operationName: "SignOut",
     query: SIGN_OUT_MUTATION,
     variables: {
       input: {},
     },
-  });
+  }, options);
 
   const result = data.signOut;
 
@@ -292,13 +311,14 @@ const VIEWER_QUERY = /* GraphQL */ `
 
 export async function fetchViewer({
   headers,
-}: { headers?: HeadersInit } = {}): Promise<AuthUser | null> {
+  locale,
+}: { headers?: HeadersInit; locale?: string | null } = {}): Promise<AuthUser | null> {
   const data = await requestGraphQL<ViewerResult>(
     {
       operationName: "Viewer",
       query: VIEWER_QUERY,
     },
-    { headers },
+    { headers, locale },
   );
 
   return data.viewer ?? null;

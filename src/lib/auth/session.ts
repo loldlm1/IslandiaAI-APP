@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 
 import { fetchViewer } from "./api";
 import { authOptions } from "./nextAuthOptions";
+import { parseLocaleFromCookieHeader } from "@/src/lib/locale/utils";
 
 export async function auth(): Promise<Session | null> {
   const session = await getServerSession(authOptions);
@@ -14,8 +15,10 @@ export async function auth(): Promise<Session | null> {
 
   try {
     const cookieHeader = headers().get("cookie");
+    const locale = parseLocaleFromCookieHeader(cookieHeader);
     const viewer = await fetchViewer({
       headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+      locale,
     });
 
     if (!viewer) {

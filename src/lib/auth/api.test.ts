@@ -7,6 +7,7 @@ import {
   signUp,
 } from "./api";
 import type { AuthUser, SignInPayload, SignUpPayload, UserError } from "./types";
+import { DEFAULT_LOCALE } from "@/src/lib/locale/constants";
 
 describe("auth API", () => {
   let originalFetch: typeof fetch | undefined;
@@ -87,6 +88,7 @@ describe("auth API", () => {
     const body = JSON.parse((init?.body ?? "") as string);
     expect(body.operationName).toBe("SignIn");
     expect(body.query).toContain("mutation SignIn");
+    expect(body.locale).toBe(DEFAULT_LOCALE);
     expect(body.variables).toEqual({
       input: {
         credentials: {
@@ -97,6 +99,25 @@ describe("auth API", () => {
     });
 
     expect(result).toEqual({ user: userFixture, userErrors: [] });
+  });
+
+  it("allows overriding the locale for sign-in requests", async () => {
+    fetchMock.mockResolvedValue(
+      mockJsonResponse({
+        data: {
+          signIn: {
+            user: userFixture,
+            userErrors: [],
+          },
+        },
+      }),
+    );
+
+    await signIn({ email: "person@example.com", password: "correct" }, { locale: "es" });
+
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse((init?.body ?? "") as string);
+    expect(body.locale).toBe("es");
   });
 
   it("returns sign-in user errors without throwing", async () => {
@@ -153,6 +174,7 @@ describe("auth API", () => {
     const body = JSON.parse((init?.body ?? "") as string);
     expect(body.operationName).toBe("SignUp");
     expect(body.query).toContain("mutation SignUp");
+    expect(body.locale).toBe(DEFAULT_LOCALE);
     expect(body.variables).toEqual({
       input: {
         attributes: {
@@ -211,9 +233,29 @@ describe("auth API", () => {
     const body = JSON.parse((init?.body ?? "") as string);
     expect(body.operationName).toBe("SignOut");
     expect(body.query).toContain("mutation SignOut");
+    expect(body.locale).toBe(DEFAULT_LOCALE);
     expect(body.variables).toEqual({ input: {} });
 
     expect(result).toEqual({ user: null, userErrors: [] });
+  });
+
+  it("includes the overridden locale when signing out", async () => {
+    fetchMock.mockResolvedValue(
+      mockJsonResponse({
+        data: {
+          signOut: {
+            user: null,
+            userErrors: [],
+          },
+        },
+      }),
+    );
+
+    await signOut({ locale: "es" });
+
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse((init?.body ?? "") as string);
+    expect(body.locale).toBe("es");
   });
 
   it("fetches the viewer using the cookie-backed session", async () => {
@@ -236,8 +278,25 @@ describe("auth API", () => {
     const body = JSON.parse((init?.body ?? "") as string);
     expect(body.operationName).toBe("Viewer");
     expect(body.query).toContain("query Viewer");
+    expect(body.locale).toBe(DEFAULT_LOCALE);
 
     expect(result).toEqual(userFixture);
+  });
+
+  it("allows overriding the locale when fetching the viewer", async () => {
+    fetchMock.mockResolvedValue(
+      mockJsonResponse({
+        data: {
+          viewer: userFixture,
+        },
+      }),
+    );
+
+    await fetchViewer({ locale: "es" });
+
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse((init?.body ?? "") as string);
+    expect(body.locale).toBe("es");
   });
 
   it("surfaces GraphQL errors with status and details", async () => {

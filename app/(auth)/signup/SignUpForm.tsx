@@ -9,6 +9,7 @@ import { useCallback, useState } from "react";
 
 import { AuthRequestError, signUp } from "@/src/lib/auth/api";
 import type { UserError } from "@/src/lib/auth/types";
+import { useLocale } from "@tailadmin/context/LocaleContext";
 
 const emailRegex = /.+@.+\..+/;
 
@@ -19,6 +20,7 @@ export default function SignUpForm() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { locale } = useLocale();
 
   const validate = useCallback((formData: FormData) => {
     const nextErrors: FieldErrors = {};
@@ -111,12 +113,15 @@ export default function SignUpForm() {
 
       try {
         setIsSubmitting(true);
-        const result = await signUp({
-          name,
-          email,
-          password,
-          passwordConfirmation: confirmPassword,
-        });
+        const result = await signUp(
+          {
+            name,
+            email,
+            password,
+            passwordConfirmation: confirmPassword,
+          },
+          { locale },
+        );
 
         if (result.userErrors.length > 0) {
           const message = applyUserErrors(result.userErrors);
@@ -140,7 +145,7 @@ export default function SignUpForm() {
         setIsSubmitting(false);
       }
     },
-    [applyUserErrors, router, validate],
+    [applyUserErrors, locale, router, validate],
   );
 
   return (

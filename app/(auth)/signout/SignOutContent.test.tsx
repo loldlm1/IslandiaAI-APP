@@ -6,6 +6,8 @@ import { signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
 import { signOut as signOutMutation } from "@/src/lib/auth/api";
+import { DEFAULT_LOCALE } from "@/src/lib/locale/constants";
+import { LocaleProvider } from "@tailadmin/context/LocaleContext";
 
 jest.mock("next-auth/react", () => ({
   signOut: jest.fn(),
@@ -38,17 +40,27 @@ describe("SignOutContent", () => {
     } as unknown as ReturnType<typeof useRouter>);
   });
 
+  function renderComponent() {
+    return render(
+      <LocaleProvider initialLocale={DEFAULT_LOCALE}>
+        <SignOutContent />
+      </LocaleProvider>,
+    );
+  }
+
   it("signs out successfully and redirects to sign in", async () => {
     signOutMutationMock.mockResolvedValue({ user: null, userErrors: [] });
     signOutMock.mockResolvedValue(undefined as never);
 
-    render(<SignOutContent />);
+    renderComponent();
 
     expect(
       screen.getByText("One moment while we securely end your session."),
     ).toBeInTheDocument();
 
-    await waitFor(() => expect(signOutMutationMock).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(signOutMutationMock).toHaveBeenCalledWith({ locale: DEFAULT_LOCALE }),
+    );
     await waitFor(() => expect(signOutMock).toHaveBeenCalledWith({ redirect: false }));
 
     await waitFor(() =>
@@ -64,11 +76,9 @@ describe("SignOutContent", () => {
   it("shows an error message when sign out fails", async () => {
     signOutMutationMock.mockRejectedValue(new Error("Network error"));
 
-    render(<SignOutContent />);
+    renderComponent();
 
-    await waitFor(() =>
-      expect(screen.getByText("We couldn't complete your sign out. Please try again.")).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText("Network error")).toBeInTheDocument());
 
     expect(signOutMock).not.toHaveBeenCalled();
     expect(replace).not.toHaveBeenCalled();
@@ -81,7 +91,7 @@ describe("SignOutContent", () => {
       userErrors: [{ message: "Session could not be closed", path: [] }],
     });
 
-    render(<SignOutContent />);
+    renderComponent();
 
     await waitFor(() =>
       expect(screen.getByText("Session could not be closed")).toBeInTheDocument(),

@@ -2,6 +2,7 @@ import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
 import { AuthRequestError, signIn as signInMutation } from "./api";
+import { parseLocaleFromCookieHeader } from "@/src/lib/locale/utils";
 
 export const authOptions: NextAuthOptions = {
   session: {
@@ -17,16 +18,17 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) {
           throw new AuthRequestError("Email and password are required");
         }
 
         try {
+          const locale = parseLocaleFromCookieHeader(req?.headers?.cookie);
           const result = await signInMutation({
             email: credentials.email,
             password: credentials.password,
-          });
+          }, { locale });
 
           if (result.userErrors.length > 0) {
             throw new AuthRequestError(result.userErrors[0]?.message ?? "Unable to sign in", {
