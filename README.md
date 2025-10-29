@@ -65,6 +65,9 @@ This package contains the Next.js interface for IslandiaAI. It consumes the Rail
   ```bash
   NEXT_PUBLIC_GRAPHQL_URL=http://localhost:3000/graphql yarn test:e2e
   ```
+- Provide real credentials via `E2E_SIGNIN_EMAIL` and `E2E_SIGNIN_PASSWORD` so Playwright can authenticate against the live API. When unset, the suite falls back to the mock user (`isla@example.com` / `password123`).
+- If the env vars above are missing when `NEXT_PUBLIC_GRAPHQL_URL` is configured, the tests fail fast with a descriptive error instead of hanging on the dashboard redirect.
+- Sign-up flows are automatically stubbed in Playwright when targeting a real GraphQL API so we don't create persistent accounts during CI runs.
 - When using a real API, test timeouts are automatically increased (from 60s to 90s) to accommodate network latency.
 - Ensure your local GraphQL API is running and accessible before running E2E tests with real endpoints.
 - The viewer query is used for dashboard authentication—ensure your API supports the `viewer` query with proper cookie-based authentication.
