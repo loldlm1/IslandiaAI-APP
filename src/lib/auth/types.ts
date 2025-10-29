@@ -12,6 +12,7 @@ export interface SignInPayload {
 export interface SignInResult {
   user: AuthUser | null;
   userErrors: UserError[];
+  setCookies: string[];
 }
 
 export interface SignUpPayload {
@@ -24,6 +25,7 @@ export interface SignUpPayload {
 export interface SignUpResult {
   user: AuthUser | null;
   userErrors: UserError[];
+  setCookies: string[];
 }
 
 export interface ViewerResult {
@@ -38,6 +40,7 @@ export interface GraphQLErrorResponse {
 export interface SignOutResult {
   user: AuthUser | null;
   userErrors: UserError[];
+  setCookies: string[];
 }
 
 export interface UserError extends GraphQLErrorResponse {

@@ -1,8 +1,117 @@
+import { cookies, headers } from "next/headers";
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
-import { AuthRequestError, signIn as signInMutation } from "./api";
+import { AuthRequestError, signIn as signInMutation, signOut as signOutMutation } from "./api";
 import { parseLocaleFromCookieHeader } from "@/src/lib/locale/utils";
+
+interface ParsedCookiePayload {
+  sameSite?: "lax" | "strict" | "none";
+  name: string;
+  value: string;
+  path?: string;
+  domain?: string;
+  secure?: boolean;
+  httpOnly?: boolean;
+  expires?: Date;
+  maxAge?: number;
+}
+
+function parseSetCookieHeader(setCookie: string): ParsedCookiePayload | null {
+  const segments = setCookie.split(";").map((segment) => segment.trim());
+  if (segments.length === 0) {
+    return null;
+  }
+
+  const [nameValue, ...attributeSegments] = segments;
+  const [rawName, ...rawValueParts] = nameValue.split("=");
+  if (!rawName || rawValueParts.length === 0) {
+    return null;
+  }
+
+  const name = rawName.trim();
+  const value = rawValueParts.join("=");
+
+  const attributes = new Map<string, string | true>();
+  for (const segment of attributeSegments) {
+    if (!segment) {
+      continue;
+    }
+
+    const [attributeName, ...attributeValueParts] = segment.split("=");
+    if (!attributeName) {
+      continue;
+    }
+
+    const key = attributeName.trim().toLowerCase();
+    const attributeValue = attributeValueParts.join("=").trim();
+    if (!attributeValue) {
+      attributes.set(key, true);
+    } else {
+      attributes.set(key, attributeValue);
+    }
+  }
+
+  const sameSiteValue = attributes.get("samesite");
+  const normalizedSameSite =
+    typeof sameSiteValue === "string" ? sameSiteValue.toLowerCase() : undefined;
+  const sameSite =
+    normalizedSameSite === "lax" || normalizedSameSite === "strict" || normalizedSameSite === "none"
+      ? normalizedSameSite
+      : undefined;
+
+  const expiresValue = attributes.get("expires");
+  const expires =
+    typeof expiresValue === "string" && expiresValue
+      ? new Date(expiresValue)
+      : undefined;
+
+  const maxAgeValue = attributes.get("max-age");
+  const maxAge =
+    typeof maxAgeValue === "string"
+      ? Number.parseInt(maxAgeValue, 10)
+      : undefined;
+
+  return {
+    name,
+    value,
+    path: typeof attributes.get("path") === "string" ? (attributes.get("path") as string) : undefined,
+    domain:
+      typeof attributes.get("domain") === "string" ? (attributes.get("domain") as string) : undefined,
+    secure: attributes.has("secure") || attributes.get("secure") === true,
+    httpOnly: attributes.has("httponly") || attributes.get("httponly") === true,
+    sameSite,
+    expires: Number.isFinite(expires?.valueOf() ?? NaN) ? expires : undefined,
+    maxAge: Number.isFinite(maxAge ?? NaN) ? maxAge : undefined,
+  };
+}
+
+function applyGraphqlCookies(setCookies: string[]): void {
+  if (!setCookies.length) {
+    return;
+  }
+
+  const cookieStore = cookies();
+
+  for (const setCookie of setCookies) {
+    const parsed = parseSetCookieHeader(setCookie);
+    if (!parsed) {
+      continue;
+    }
+
+    cookieStore.set({
+      name: parsed.name,
+      value: parsed.value,
+      path: parsed.path,
+      domain: parsed.domain,
+      secure: Boolean(parsed.secure),
+      httpOnly: Boolean(parsed.httpOnly),
+      sameSite: parsed.sameSite,
+      expires: parsed.expires,
+      maxAge: parsed.maxAge,
+    });
+  }
+}
 
 export const authOptions: NextAuthOptions = {
   trustHost: true,
@@ -43,6 +152,8 @@ export const authOptions: NextAuthOptions = {
           if (!viewer) {
             throw new AuthRequestError("Authentication response did not include a user");
           }
+
+          applyGraphqlCookies(result.setCookies);
 
           return {
             id: viewer.id,
@@ -89,6 +200,28 @@ export const authOptions: NextAuthOptions = {
       }
 
       return session;
+    },
+  },
+  events: {
+    async signOut() {
+      try {
+        const headerStore = headers();
+        const cookieHeader = headerStore.get("cookie");
+        const locale = parseLocaleFromCookieHeader(cookieHeader);
+
+        if (!cookieHeader?.includes("islandia_session")) {
+          return;
+        }
+
+        const result = await signOutMutation({
+          headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+          locale,
+        });
+
+        applyGraphqlCookies(result.setCookies);
+      } catch (error) {
+        console.error("Failed to clear authentication cookies", error);
+      }
     },
   },
 };

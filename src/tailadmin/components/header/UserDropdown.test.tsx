@@ -56,7 +56,7 @@ describe("UserDropdown", () => {
       update: jest.fn(),
     } as unknown as ReturnType<typeof useSession>);
     signOutMock.mockResolvedValue(undefined as never);
-    signOutMutationMock.mockResolvedValue({ user: null, userErrors: [] });
+    signOutMutationMock.mockResolvedValue({ user: null, userErrors: [], setCookies: [] });
   });
 
   it("disables the sign out action while the request is in flight", async () => {
@@ -79,7 +79,7 @@ describe("UserDropdown", () => {
     expect(signingOutButton).toHaveClass("pointer-events-none");
     expect(signingOutButton).toHaveClass("opacity-60");
 
-    mutationDeferred.resolve({ user: null, userErrors: [] });
+    mutationDeferred.resolve({ user: null, userErrors: [], setCookies: [] });
     await waitFor(() => expect(signOutMock).toHaveBeenCalledWith({ callbackUrl: "/signin" }));
     expect(signOutMutationMock).toHaveBeenCalledWith({ locale: DEFAULT_LOCALE });
 
@@ -125,6 +125,7 @@ describe("UserDropdown", () => {
     signOutMutationMock.mockResolvedValueOnce({
       user: null,
       userErrors: [{ message: "Session could not be closed", path: [] }],
+      setCookies: [],
     });
 
     renderComponent();

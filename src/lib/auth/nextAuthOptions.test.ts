@@ -1,15 +1,21 @@
 import type { JWT } from "next-auth/jwt";
 
+jest.mock("next/headers", () => ({
+  cookies: jest.fn(),
+  headers: jest.fn(),
+}));
+
 jest.mock("./api", () => {
   const actual = jest.requireActual("./api");
   return {
     ...actual,
     signIn: jest.fn(),
+    signOut: jest.fn(),
   };
 });
 
 import { authOptions } from "./nextAuthOptions";
-import { signIn } from "./api";
+import { signIn, signOut } from "./api";
 import { mockUser } from "@/src/mocks/handlers/auth";
 import { DEFAULT_LOCALE } from "@/src/lib/locale/constants";
 
@@ -33,6 +39,12 @@ describe("nextAuthOptions", () => {
   };
 
   const signInMock = signIn as jest.MockedFunction<typeof signIn>;
+  const signOutMock = signOut as jest.MockedFunction<typeof signOut>;
+  const { cookies: cookiesMock, headers: headersMock } = jest.requireMock("next/headers") as {
+    cookies: jest.Mock;
+    headers: jest.Mock;
+  };
+  const setCookieMock = jest.fn();
 
   const validCredentials = {
     email: mockUser.email,
@@ -41,10 +53,16 @@ describe("nextAuthOptions", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    setCookieMock.mockClear();
+    cookiesMock.mockReturnValue({
+      getAll: jest.fn(() => []),
+      set: setCookieMock,
+    });
+    headersMock.mockReturnValue(new Headers());
   });
 
   it("authorizes a user with valid credentials", async () => {
-    signInMock.mockResolvedValue({ user: mockUser, userErrors: [] });
+    signInMock.mockResolvedValue({ user: mockUser, userErrors: [], setCookies: [] });
 
     const authorize = getAuthorize();
     const result = await authorize(validCredentials);
@@ -71,6 +89,7 @@ describe("nextAuthOptions", () => {
     signInMock.mockResolvedValue({
       user: null,
       userErrors: [{ message: "Invalid credentials", path: ["credentials", "password"] }],
+      setCookies: [],
     });
 
     const authorize = getAuthorize();
@@ -83,7 +102,7 @@ describe("nextAuthOptions", () => {
   });
 
   it("passes the locale from cookies to the sign-in mutation", async () => {
-    signInMock.mockResolvedValue({ user: mockUser, userErrors: [] });
+    signInMock.mockResolvedValue({ user: mockUser, userErrors: [], setCookies: [] });
 
     const authorize = getAuthorize();
     await authorize(validCredentials, { headers: { cookie: "locale=es" } });
@@ -91,8 +110,30 @@ describe("nextAuthOptions", () => {
     expect(signInMock).toHaveBeenCalledWith(validCredentials, { locale: "es" });
   });
 
+  it("persists GraphQL authentication cookies when provided", async () => {
+    signInMock.mockResolvedValue({
+      user: mockUser,
+      userErrors: [],
+      setCookies: ["islandia_session=abc123; Path=/; HttpOnly; Secure; SameSite=Lax"],
+    });
+
+    const authorize = getAuthorize();
+    await authorize(validCredentials);
+
+    expect(setCookieMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "islandia_session",
+        value: "abc123",
+        path: "/",
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+      }),
+    );
+  });
+
   it("throws when the API does not return a user", async () => {
-    signInMock.mockResolvedValue({ user: null, userErrors: [] });
+    signInMock.mockResolvedValue({ user: null, userErrors: [], setCookies: [] });
 
     const authorize = getAuthorize();
 
@@ -168,5 +209,31 @@ describe("nextAuthOptions", () => {
       name: mockUser.name,
       email: mockUser.email,
     });
+  });
+
+  it("revokes the GraphQL session cookie during sign-out events", async () => {
+    const signOutEvent = authOptions.events?.signOut;
+    expect(signOutEvent).toBeDefined();
+
+    headersMock.mockReturnValueOnce(new Headers({ cookie: "locale=es; islandia_session=xyz" }));
+    signOutMock.mockResolvedValue({
+      user: null,
+      userErrors: [],
+      setCookies: ["islandia_session=; Path=/; Max-Age=0; HttpOnly"],
+    });
+
+    await signOutEvent?.();
+
+    expect(signOutMock).toHaveBeenCalledWith({
+      headers: { cookie: "locale=es; islandia_session=xyz" },
+      locale: "es",
+    });
+    expect(setCookieMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "islandia_session",
+        maxAge: 0,
+        httpOnly: true,
+      }),
+    );
   });
 });
