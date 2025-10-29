@@ -1,54 +1,66 @@
 import { graphql, HttpResponse } from "msw";
 
-import type { LoginPayload, RegisterPayload } from "@/src/lib/auth/types";
-import {
-  buildAuthError,
-  buildLoginSuccess,
-  buildLogoutSuccess,
-  buildRegisterSuccess,
-  mockAccessToken as factoryAccessToken,
-  mockAuthUser,
-  mockRefreshToken as factoryRefreshToken,
-} from "@/tests/mocks/graphql";
+import type { SignInPayload, SignUpPayload, UserError } from "@/src/lib/auth/types";
+import { buildSignInErrors, buildSignInSuccess, buildSignOutSuccess, buildSignUpErrors, buildSignUpSuccess, mockAuthUser } from "@/tests/mocks/graphql";
 
-export const mockAccessToken = factoryAccessToken;
-export const mockRefreshToken = factoryRefreshToken ?? undefined;
+const SESSION_COOKIE_NAME = "islandia_session";
+const SESSION_COOKIE_VALUE = "mock-session";
+
 export const mockUser = mockAuthUser;
 
 export const authHandlers = [
-  graphql.mutation("Login", async ({ variables }) => {
-    const input = (variables as { input?: Partial<LoginPayload> })?.input ?? {};
-    const password = input.password ?? "";
+  graphql.mutation("SignIn", async ({ variables }) => {
+    const input = (variables as { input?: { credentials?: SignInPayload } })?.input ?? {};
+    const password = input.credentials?.password ?? "";
 
     if (password !== "password123") {
-      return HttpResponse.json(buildAuthError("Invalid credentials"), {
-        status: 200,
-      });
+      const errors: UserError[] = [
+        { message: "Invalid credentials", path: ["credentials", "password"] },
+      ];
+      return HttpResponse.json(buildSignInErrors(errors), { status: 200 });
     }
 
-    return HttpResponse.json(buildLoginSuccess(), { status: 200 });
+    return HttpResponse.json(buildSignInSuccess(), {
+      status: 200,
+      headers: {
+        "Set-Cookie": `${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}; Path=/; HttpOnly`,
+      },
+    });
   }),
-  graphql.mutation("RegisterUser", async ({ variables }) => {
-    const input = (variables as { input?: RegisterPayload })?.input ??
-      ({} as RegisterPayload);
-    const email = input.email ?? "";
-    const name = input.name ?? mockAuthUser.name;
+  graphql.mutation("SignUp", async ({ variables }) => {
+    const input = (variables as {
+      input?: { attributes?: Partial<SignUpPayload> };
+    })?.input ?? { attributes: {} };
+    const attributes = input.attributes ?? {};
+    const email = attributes.email ?? "";
+    const name = attributes.name ?? mockAuthUser.name;
 
     if (email === "taken@example.com") {
-      return HttpResponse.json(buildAuthError("Email is already registered"), {
-        status: 200,
-      });
+      const errors: UserError[] = [
+        { message: "Email is already registered", path: ["attributes", "email"] },
+      ];
+      return HttpResponse.json(buildSignUpErrors(errors), { status: 200 });
     }
 
     return HttpResponse.json(
-      buildRegisterSuccess({
+      buildSignUpSuccess({
         email,
         name,
       }),
-      { status: 200 },
+      {
+        status: 200,
+        headers: {
+          "Set-Cookie": `${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}; Path=/; HttpOnly`,
+        },
+      },
     );
   }),
-  graphql.mutation("Logout", async () => {
-    return HttpResponse.json(buildLogoutSuccess(), { status: 200 });
+  graphql.mutation("SignOut", async () => {
+    return HttpResponse.json(buildSignOutSuccess(), {
+      status: 200,
+      headers: {
+        "Set-Cookie": `${SESSION_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly`,
+      },
+    });
   }),
 ];

@@ -4,19 +4,13 @@ jest.mock("./api", () => {
   const actual = jest.requireActual("./api");
   return {
     ...actual,
-    login: jest.fn(),
-    fetchViewer: jest.fn(),
+    signIn: jest.fn(),
   };
 });
 
 import { authOptions } from "./nextAuthOptions";
-import { AuthRequestError, fetchViewer, login } from "./api";
-import {
-  mockAccessToken,
-  mockRefreshToken,
-  mockUser,
-} from "@/src/mocks/handlers/auth";
-import { mockAuthTokens } from "@/tests/mocks/graphql";
+import { AuthRequestError, signIn } from "./api";
+import { mockUser } from "@/src/mocks/handlers/auth";
 
 type AuthorizeFn = (credentials?: Record<string, unknown>) => Promise<unknown>;
 
@@ -34,8 +28,7 @@ describe("nextAuthOptions", () => {
     return credentialsProvider.options.authorize;
   };
 
-  const loginMock = login as jest.MockedFunction<typeof login>;
-  const fetchViewerMock = fetchViewer as jest.MockedFunction<typeof fetchViewer>;
+  const signInMock = signIn as jest.MockedFunction<typeof signIn>;
 
   const validCredentials = {
     email: mockUser.email,
@@ -47,20 +40,16 @@ describe("nextAuthOptions", () => {
   });
 
   it("authorizes a user with valid credentials", async () => {
-    loginMock.mockResolvedValue(mockAuthTokens);
-    fetchViewerMock.mockResolvedValue(mockUser);
+    signInMock.mockResolvedValue({ user: mockUser, userErrors: [] });
 
     const authorize = getAuthorize();
     const result = await authorize(validCredentials);
 
-    expect(loginMock).toHaveBeenCalledWith(validCredentials);
-    expect(fetchViewerMock).toHaveBeenCalledWith(mockAccessToken);
+    expect(signInMock).toHaveBeenCalledWith(validCredentials);
     expect(result).toEqual({
       id: mockUser.id,
       name: mockUser.name,
       email: mockUser.email,
-      accessToken: mockAccessToken,
-      refreshToken: mockRefreshToken,
     });
   });
 
@@ -71,26 +60,38 @@ describe("nextAuthOptions", () => {
       name: "AuthRequestError",
       message: "Email and password are required",
     });
-    expect(loginMock).not.toHaveBeenCalled();
-    expect(fetchViewerMock).not.toHaveBeenCalled();
+    expect(signInMock).not.toHaveBeenCalled();
   });
 
-  it("rethrows AuthRequestError from downstream calls", async () => {
-    const downstreamError = new AuthRequestError("Viewer is unavailable");
-
-    loginMock.mockResolvedValue(mockAuthTokens);
-    fetchViewerMock.mockRejectedValue(downstreamError);
+  it("throws when the API returns user errors", async () => {
+    signInMock.mockResolvedValue({
+      user: null,
+      userErrors: [{ message: "Invalid credentials", path: ["credentials", "password"] }],
+    });
 
     const authorize = getAuthorize();
 
-    await expect(authorize(validCredentials)).rejects.toBe(downstreamError);
-    expect(loginMock).toHaveBeenCalledTimes(1);
-    expect(fetchViewerMock).toHaveBeenCalledTimes(1);
+    await expect(authorize(validCredentials)).rejects.toMatchObject({
+      name: "AuthRequestError",
+      message: "Invalid credentials",
+      details: [{ message: "Invalid credentials", path: ["credentials", "password"] }],
+    });
+  });
+
+  it("throws when the API does not return a user", async () => {
+    signInMock.mockResolvedValue({ user: null, userErrors: [] });
+
+    const authorize = getAuthorize();
+
+    await expect(authorize(validCredentials)).rejects.toMatchObject({
+      name: "AuthRequestError",
+      message: "Authentication response did not include a user",
+    });
   });
 
   it("wraps unexpected errors with a generic AuthRequestError", async () => {
     const unexpectedError = new Error("Something went wrong");
-    loginMock.mockRejectedValue(unexpectedError);
+    signInMock.mockRejectedValue(unexpectedError);
 
     const authorize = getAuthorize();
 
@@ -99,10 +100,9 @@ describe("nextAuthOptions", () => {
       message: "Unable to complete sign in",
       cause: unexpectedError,
     });
-    expect(fetchViewerMock).not.toHaveBeenCalled();
   });
 
-  it("persists access and refresh tokens plus viewer data in the JWT callback", async () => {
+  it("persists user details in the JWT callback", async () => {
     const jwtCallback = authOptions.callbacks?.jwt;
     expect(jwtCallback).toBeDefined();
 
@@ -113,8 +113,6 @@ describe("nextAuthOptions", () => {
         id: mockUser.id,
         name: mockUser.name,
         email: mockUser.email,
-        accessToken: mockAccessToken,
-        refreshToken: mockRefreshToken,
       },
       account: null,
       profile: null,
@@ -123,8 +121,6 @@ describe("nextAuthOptions", () => {
 
     expect(result).toMatchObject({
       sub: "user-sub",
-      accessToken: mockAccessToken,
-      refreshToken: mockRefreshToken,
       user: {
         id: mockUser.id,
         name: mockUser.name,
@@ -133,7 +129,7 @@ describe("nextAuthOptions", () => {
     });
   });
 
-  it("exposes viewer data and tokens on the session", async () => {
+  it("merges user data from the JWT into the session", async () => {
     const sessionCallback = authOptions.callbacks?.session;
     expect(sessionCallback).toBeDefined();
 
@@ -149,8 +145,6 @@ describe("nextAuthOptions", () => {
           name: mockUser.name,
           email: mockUser.email,
         },
-        accessToken: mockAccessToken,
-        refreshToken: mockRefreshToken,
       },
       newSession: false,
       trigger: "update",
@@ -161,7 +155,5 @@ describe("nextAuthOptions", () => {
       name: mockUser.name,
       email: mockUser.email,
     });
-    expect(result.accessToken).toBe(mockAccessToken);
-    expect(result.refreshToken).toBe(mockRefreshToken);
   });
 });

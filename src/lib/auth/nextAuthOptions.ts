@@ -1,7 +1,7 @@
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
-import { AuthRequestError, fetchViewer, login } from "./api";
+import { AuthRequestError, signIn as signInMutation } from "./api";
 
 export const authOptions: NextAuthOptions = {
   session: {
@@ -23,19 +23,27 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-          const tokens = await login({
+          const result = await signInMutation({
             email: credentials.email,
             password: credentials.password,
           });
 
-          const viewer = await fetchViewer(tokens.accessToken);
+          if (result.userErrors.length > 0) {
+            throw new AuthRequestError(result.userErrors[0]?.message ?? "Unable to sign in", {
+              details: result.userErrors,
+            });
+          }
+
+          const viewer = result.user;
+
+          if (!viewer) {
+            throw new AuthRequestError("Authentication response did not include a user");
+          }
 
           return {
             id: viewer.id,
             name: viewer.name,
             email: viewer.email,
-            accessToken: tokens.accessToken,
-            refreshToken: tokens.refreshToken ?? undefined,
           };
         } catch (error) {
           if (error instanceof AuthRequestError) {
@@ -50,14 +58,19 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
-        token.accessToken = user.accessToken;
-        token.refreshToken = user.refreshToken;
         token.user = {
           id: user.id,
           name: user.name ?? undefined,
           email: user.email ?? undefined,
+        };
+      } else if (trigger === "update" && session?.user) {
+        token.user = {
+          ...token.user,
+          id: session.user.id ?? token.user?.id,
+          name: session.user.name ?? token.user?.name,
+          email: session.user.email ?? token.user?.email,
         };
       }
 
@@ -69,14 +82,6 @@ export const authOptions: NextAuthOptions = {
           ...session.user,
           ...token.user,
         };
-      }
-
-      if (typeof token.accessToken === "string") {
-        session.accessToken = token.accessToken;
-      }
-
-      if (typeof token.refreshToken === "string") {
-        session.refreshToken = token.refreshToken;
       }
 
       return session;

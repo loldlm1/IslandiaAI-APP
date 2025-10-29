@@ -1,13 +1,11 @@
 import {
-  type AuthTokens,
   type AuthUser,
   type GraphQLErrorResponse,
-  type LoginPayload,
-  type LoginResult,
-  type LogoutPayload,
-  type LogoutResult,
-  type RegisterPayload,
-  type RegisterResult,
+  type SignInPayload,
+  type SignInResult,
+  type SignOutResult,
+  type SignUpPayload,
+  type SignUpResult,
   type ViewerResult,
 } from "./types";
 
@@ -76,16 +74,17 @@ async function parseJsonResponse<T>(response: Response): Promise<T | null> {
 
 async function requestGraphQL<TData, TVariables = Record<string, unknown>>(
   body: GraphQLBody<TVariables>,
-  { accessToken }: { accessToken?: string } = {},
+  { headers }: { headers?: HeadersInit } = {},
 ): Promise<TData> {
   const response = await fetch(GRAPHQL_ENDPOINT, {
     method: "POST",
     headers: {
       ...JSON_HEADERS,
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      ...headers,
     },
     body: JSON.stringify(body),
     cache: "no-store",
+    credentials: "include",
   });
 
   const json = (await parseJsonResponse<GraphQLResponse<TData>>(response)) ?? {};
@@ -113,168 +112,172 @@ async function requestGraphQL<TData, TVariables = Record<string, unknown>>(
   return json.data;
 }
 
-interface LoginMutationResult {
-  login?: {
-    accessToken?: string;
-    refreshToken?: string | null;
-    tokenType?: string;
-    expiresIn?: number;
-    createdAt?: number;
-  } | null;
-}
-
-interface LoginMutationVariables {
-  input: {
-    email: string;
-    password: string;
-  };
-}
-
-const LOGIN_MUTATION = /* GraphQL */ `
-  mutation Login($input: LoginInput!) {
-    login(input: $input) {
-      accessToken
-      refreshToken
-      tokenType
-      expiresIn
-      createdAt
-    }
-  }
-`;
-
-export async function login(payload: LoginPayload): Promise<LoginResult> {
-  const data = await requestGraphQL<LoginMutationResult, LoginMutationVariables>({
-    operationName: "Login",
-    query: LOGIN_MUTATION,
-    variables: {
-      input: {
-        email: payload.email,
-        password: payload.password,
-      },
-    },
-  });
-
-  const tokens = data.login;
-
-  if (!tokens || typeof tokens.accessToken !== "string") {
-    throw new AuthRequestError("Authentication response did not include an access token");
-  }
-
-  if (typeof tokens.tokenType !== "string") {
-    throw new AuthRequestError("Authentication response did not include the token type");
-  }
-
-  if (typeof tokens.expiresIn !== "number") {
-    throw new AuthRequestError(
-      "Authentication response did not include the token expiration",
-    );
-  }
-
-  return {
-    accessToken: tokens.accessToken,
-    refreshToken: tokens.refreshToken ?? null,
-    tokenType: tokens.tokenType,
-    expiresIn: tokens.expiresIn,
-    createdAt: tokens.createdAt,
-  };
-}
-
-interface RegisterMutationResult {
-  registerUser?: {
+interface SignInMutationResult {
+  signIn?: {
     user?: AuthUser | null;
+    userErrors?: { message: string; path: string[] }[];
   } | null;
 }
 
-interface RegisterMutationVariables {
+interface SignInMutationVariables {
   input: {
-    email: string;
-    name: string;
-    password: string;
-    organizationName?: string;
+    credentials: {
+      email: string;
+      password: string;
+    };
   };
 }
 
-const REGISTER_MUTATION = /* GraphQL */ `
-  mutation RegisterUser($input: RegisterUserInput!) {
-    registerUser(input: $input) {
+const SIGN_IN_MUTATION = /* GraphQL */ `
+  mutation SignIn($input: SignInInput!) {
+    signIn(input: $input) {
       user {
         id
         email
         name
       }
+      userErrors {
+        message
+        path
+      }
     }
   }
 `;
 
-export async function register(
-  payload: RegisterPayload,
-): Promise<RegisterResult> {
-  const data = await requestGraphQL<RegisterMutationResult, RegisterMutationVariables>({
-    operationName: "RegisterUser",
-    query: REGISTER_MUTATION,
+export async function signIn(payload: SignInPayload): Promise<SignInResult> {
+  const data = await requestGraphQL<SignInMutationResult, SignInMutationVariables>({
+    operationName: "SignIn",
+    query: SIGN_IN_MUTATION,
     variables: {
       input: {
-        email: payload.email,
-        name: payload.name,
-        password: payload.password,
-        ...(payload.organizationName
-          ? { organizationName: payload.organizationName }
-          : {}),
+        credentials: {
+          email: payload.email,
+          password: payload.password,
+        },
       },
     },
   });
 
-  const user = data.registerUser?.user;
+  const result = data.signIn;
 
-  if (
-    !user ||
-    typeof user.id !== "string" ||
-    typeof user.email !== "string" ||
-    typeof user.name !== "string"
-  ) {
-    throw new AuthRequestError("Registration response did not include a user");
+  if (!result) {
+    throw new AuthRequestError("Authentication response did not include a sign-in payload");
   }
 
-  return { user };
-}
-
-interface LogoutMutationResult {
-  logout?: {
-    success?: boolean | null;
-  } | null;
-}
-
-interface LogoutMutationVariables {
-  input?: {
-    token?: string | null;
+  return {
+    user: result.user ?? null,
+    userErrors: result.userErrors ?? [],
   };
 }
 
-const LOGOUT_MUTATION = /* GraphQL */ `
-  mutation Logout($input: LogoutInput!) {
-    logout(input: $input) {
-      success
+interface SignUpMutationResult {
+  signUp?: {
+    user?: AuthUser | null;
+    userErrors?: { message: string; path: string[] }[];
+  } | null;
+}
+
+interface SignUpMutationVariables {
+  input: {
+    attributes: {
+      email: string;
+      name: string;
+      password: string;
+      passwordConfirmation: string;
+    };
+  };
+}
+
+const SIGN_UP_MUTATION = /* GraphQL */ `
+  mutation SignUp($input: SignUpInput!) {
+    signUp(input: $input) {
+      user {
+        id
+        email
+        name
+      }
+      userErrors {
+        message
+        path
+      }
     }
   }
 `;
 
-export async function logout({ accessToken }: LogoutPayload = {}): Promise<LogoutResult> {
-  const data = await requestGraphQL<LogoutMutationResult, LogoutMutationVariables>(
-    {
-      operationName: "Logout",
-      query: LOGOUT_MUTATION,
-      variables: {
-        input: {
-          token: accessToken ?? null,
+export async function signUp(payload: SignUpPayload): Promise<SignUpResult> {
+  const data = await requestGraphQL<SignUpMutationResult, SignUpMutationVariables>({
+    operationName: "SignUp",
+    query: SIGN_UP_MUTATION,
+    variables: {
+      input: {
+        attributes: {
+          email: payload.email,
+          name: payload.name,
+          password: payload.password,
+          passwordConfirmation: payload.passwordConfirmation,
         },
       },
     },
-    { accessToken },
-  );
+  });
 
-  const success = data.logout?.success;
+  const result = data.signUp;
 
-  return { success: success ?? true };
+  if (!result) {
+    throw new AuthRequestError("Registration response did not include a sign-up payload");
+  }
+
+  return {
+    user: result.user ?? null,
+    userErrors: result.userErrors ?? [],
+  };
+}
+
+interface SignOutMutationResult {
+  signOut?: {
+    user?: AuthUser | null;
+    userErrors?: { message: string; path: string[] }[];
+  } | null;
+}
+
+interface SignOutMutationVariables {
+  input: Record<string, never>;
+}
+
+const SIGN_OUT_MUTATION = /* GraphQL */ `
+  mutation SignOut($input: SignOutInput!) {
+    signOut(input: $input) {
+      user {
+        id
+        email
+        name
+      }
+      userErrors {
+        message
+        path
+      }
+    }
+  }
+`;
+
+export async function signOut(): Promise<SignOutResult> {
+  const data = await requestGraphQL<SignOutMutationResult, SignOutMutationVariables>({
+    operationName: "SignOut",
+    query: SIGN_OUT_MUTATION,
+    variables: {
+      input: {},
+    },
+  });
+
+  const result = data.signOut;
+
+  if (!result) {
+    throw new AuthRequestError("Sign-out response did not include a payload");
+  }
+
+  return {
+    user: result.user ?? null,
+    userErrors: result.userErrors ?? [],
+  };
 }
 
 const VIEWER_QUERY = /* GraphQL */ `
@@ -287,14 +290,16 @@ const VIEWER_QUERY = /* GraphQL */ `
   }
 `;
 
-export async function fetchViewer(accessToken: string): Promise<AuthUser> {
+export async function fetchViewer({
+  headers,
+}: { headers?: HeadersInit } = {}): Promise<AuthUser | null> {
   const data = await requestGraphQL<ViewerResult>(
     {
       operationName: "Viewer",
       query: VIEWER_QUERY,
     },
-    { accessToken },
+    { headers },
   );
 
-  return data.viewer;
+  return data.viewer ?? null;
 }

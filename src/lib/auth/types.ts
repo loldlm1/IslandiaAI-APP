@@ -4,44 +4,42 @@ export interface AuthUser {
   name: string;
 }
 
-export interface AuthTokens {
-  accessToken: string;
-  refreshToken?: string | null;
-  tokenType: string;
-  expiresIn: number;
-  createdAt?: number;
-}
-
-export interface LoginPayload {
+export interface SignInPayload {
   email: string;
   password: string;
 }
 
-export type LoginResult = AuthTokens;
+export interface SignInResult {
+  user: AuthUser | null;
+  userErrors: UserError[];
+}
 
-export interface RegisterPayload {
+export interface SignUpPayload {
   email: string;
   name: string;
   password: string;
-  organizationName?: string;
+  passwordConfirmation: string;
 }
 
-export interface RegisterResult {
-  user: AuthUser;
-}
-
-export interface LogoutPayload {
-  accessToken?: string;
-}
-
-export interface LogoutResult {
-  success: boolean;
+export interface SignUpResult {
+  user: AuthUser | null;
+  userErrors: UserError[];
 }
 
 export interface ViewerResult {
-  viewer: AuthUser;
+  viewer: AuthUser | null;
 }
 
 export interface GraphQLErrorResponse {
   message: string;
+  path?: (string | number)[];
+}
+
+export interface SignOutResult {
+  user: AuthUser | null;
+  userErrors: UserError[];
+}
+
+export interface UserError extends GraphQLErrorResponse {
+  path: string[];
 }

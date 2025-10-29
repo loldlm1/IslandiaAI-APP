@@ -2,16 +2,11 @@ import {
   AuthRequestError,
   GRAPHQL_ENDPOINT,
   fetchViewer,
-  login,
-  logout,
-  register,
+  signIn,
+  signOut,
+  signUp,
 } from "./api";
-import type {
-  AuthTokens,
-  AuthUser,
-  LoginPayload,
-  RegisterPayload,
-} from "./types";
+import type { AuthUser, SignInPayload, SignUpPayload, UserError } from "./types";
 
 describe("auth API", () => {
   let originalFetch: typeof fetch | undefined;
@@ -21,14 +16,6 @@ describe("auth API", () => {
     id: "user-id",
     email: "person@example.com",
     name: "Ada Lovelace",
-  };
-
-  const tokensFixture: AuthTokens = {
-    accessToken: "access-token",
-    refreshToken: "refresh-token",
-    tokenType: "Bearer",
-    expiresIn: 7_200,
-    createdAt: 1_701_610_002,
   };
 
   beforeAll(() => {
@@ -62,12 +49,13 @@ describe("auth API", () => {
         .mockImplementation(() =>
           overrides.text ? overrides.text() : Promise.resolve(JSON.stringify(body)),
         ),
+      headers: new Headers(overrides.headers),
       ...overrides,
     } as unknown as Response;
   };
 
-  it("logs in with the expected GraphQL payload and maps tokens", async () => {
-    const payload: LoginPayload = {
+  it("signs in with nested credentials and returns the viewer", async () => {
+    const payload: SignInPayload = {
       email: "person@example.com",
       password: "correct horse battery staple",
     };
@@ -75,110 +63,160 @@ describe("auth API", () => {
     fetchMock.mockResolvedValue(
       mockJsonResponse({
         data: {
-          login: {
-            accessToken: tokensFixture.accessToken,
-            refreshToken: tokensFixture.refreshToken,
-            tokenType: tokensFixture.tokenType,
-            expiresIn: tokensFixture.expiresIn,
-            createdAt: tokensFixture.createdAt,
+          signIn: {
+            user: userFixture,
+            userErrors: [],
           },
         },
       }),
     );
 
-    const result = await login(payload);
+    const result = await signIn(payload);
 
     expect(fetchMock).toHaveBeenCalledWith(
       GRAPHQL_ENDPOINT,
       expect.objectContaining({
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         cache: "no-store",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
       }),
     );
 
     const [, init] = fetchMock.mock.calls[0];
     const body = JSON.parse((init?.body ?? "") as string);
-    expect(body.operationName).toBe("Login");
-    expect(body.query).toContain("mutation Login");
+    expect(body.operationName).toBe("SignIn");
+    expect(body.query).toContain("mutation SignIn");
     expect(body.variables).toEqual({
       input: {
-        email: payload.email,
-        password: payload.password,
+        credentials: {
+          email: payload.email,
+          password: payload.password,
+        },
       },
     });
 
-    expect(result).toEqual(tokensFixture);
+    expect(result).toEqual({ user: userFixture, userErrors: [] });
   });
 
-  it("registers a user and sends the correct GraphQL payload", async () => {
-    const payload: RegisterPayload = {
+  it("returns sign-in user errors without throwing", async () => {
+    const userErrors: UserError[] = [
+      { message: "Invalid credentials", path: ["credentials", "password"] },
+    ];
+
+    fetchMock.mockResolvedValue(
+      mockJsonResponse({
+        data: {
+          signIn: {
+            user: null,
+            userErrors,
+          },
+        },
+      }),
+    );
+
+    const result = await signIn({ email: "person@example.com", password: "wrong" });
+
+    expect(result).toEqual({ user: null, userErrors });
+  });
+
+  it("throws when the sign-in payload is missing", async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse({ data: { signIn: null } }));
+
+    await expect(signIn({ email: "user@example.com", password: "secret" })).rejects.toBeInstanceOf(
+      AuthRequestError,
+    );
+  });
+
+  it("signs up with nested attributes", async () => {
+    const payload: SignUpPayload = {
       email: "person@example.com",
       name: "Ada Lovelace",
       password: "correct horse battery staple",
-      organizationName: "Analytical Engines, LLC",
+      passwordConfirmation: "correct horse battery staple",
     };
 
     fetchMock.mockResolvedValue(
       mockJsonResponse({
         data: {
-          registerUser: {
+          signUp: {
             user: userFixture,
+            userErrors: [],
           },
         },
       }),
     );
 
-    const result = await register(payload);
+    const result = await signUp(payload);
 
     const [, init] = fetchMock.mock.calls[0];
     const body = JSON.parse((init?.body ?? "") as string);
-    expect(body.operationName).toBe("RegisterUser");
-    expect(body.query).toContain("mutation RegisterUser");
+    expect(body.operationName).toBe("SignUp");
+    expect(body.query).toContain("mutation SignUp");
     expect(body.variables).toEqual({
       input: {
-        email: payload.email,
-        name: payload.name,
-        password: payload.password,
-        organizationName: payload.organizationName,
+        attributes: {
+          email: payload.email,
+          name: payload.name,
+          password: payload.password,
+          passwordConfirmation: payload.passwordConfirmation,
+        },
       },
     });
 
-    expect(result).toEqual({ user: userFixture });
+    expect(result).toEqual({ user: userFixture, userErrors: [] });
   });
 
-  it("logs out with the provided access token", async () => {
+  it("exposes sign-up user errors", async () => {
+    const userErrors: UserError[] = [
+      { message: "Email has already been taken", path: ["attributes", "email"] },
+    ];
+
     fetchMock.mockResolvedValue(
       mockJsonResponse({
         data: {
-          logout: {
-            success: true,
+          signUp: {
+            user: null,
+            userErrors,
           },
         },
       }),
     );
 
-    const result = await logout({ accessToken: tokensFixture.accessToken });
-
-    const [, init] = fetchMock.mock.calls[0];
-    const headers = init?.headers as Record<string, string>;
-    expect(headers).toEqual({
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${tokensFixture.accessToken}`,
-    });
-    const body = JSON.parse((init?.body ?? "") as string);
-    expect(body.operationName).toBe("Logout");
-    expect(body.query).toContain("mutation Logout");
-    expect(body.variables).toEqual({
-      input: {
-        token: tokensFixture.accessToken,
-      },
+    const result = await signUp({
+      email: "person@example.com",
+      name: "Ada",
+      password: "secret",
+      passwordConfirmation: "secret",
     });
 
-    expect(result).toEqual({ success: true });
+    expect(result).toEqual({ user: null, userErrors });
   });
 
-  it("fetches the viewer with the expected access token", async () => {
+  it("signs out using an empty input payload", async () => {
+    fetchMock.mockResolvedValue(
+      mockJsonResponse({
+        data: {
+          signOut: {
+            user: null,
+            userErrors: [],
+          },
+        },
+      }),
+    );
+
+    const result = await signOut();
+
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse((init?.body ?? "") as string);
+    expect(body.operationName).toBe("SignOut");
+    expect(body.query).toContain("mutation SignOut");
+    expect(body.variables).toEqual({ input: {} });
+
+    expect(result).toEqual({ user: null, userErrors: [] });
+  });
+
+  it("fetches the viewer using the cookie-backed session", async () => {
     fetchMock.mockResolvedValue(
       mockJsonResponse({
         data: {
@@ -187,13 +225,13 @@ describe("auth API", () => {
       }),
     );
 
-    const result = await fetchViewer(tokensFixture.accessToken);
+    const result = await fetchViewer();
 
     const [, init] = fetchMock.mock.calls[0];
-    const headers = init?.headers as Record<string, string>;
-    expect(headers).toEqual({
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${tokensFixture.accessToken}`,
+    expect(init).toMatchObject({
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
     });
     const body = JSON.parse((init?.body ?? "") as string);
     expect(body.operationName).toBe("Viewer");
@@ -217,7 +255,7 @@ describe("auth API", () => {
 
     expect.assertions(3);
     try {
-      await login({ email: "person@example.com", password: "wrong" });
+      await signIn({ email: "person@example.com", password: "wrong" });
     } catch (error) {
       expect(error).toBeInstanceOf(AuthRequestError);
       expect((error as AuthRequestError).status).toBe(200);
@@ -225,47 +263,6 @@ describe("auth API", () => {
         { message: "Invalid credentials" },
       ]);
     }
-  });
-
-  it("includes validation errors from registration responses", async () => {
-    fetchMock.mockResolvedValue(
-      mockJsonResponse(
-        { errors: [{ message: "email has already been taken" }] },
-        { ok: true, status: 200 },
-      ),
-    );
-
-    await expect(
-      register({
-        email: "person@example.com",
-        name: "Ada",
-        password: "secret",
-      }),
-    ).rejects.toMatchObject({
-      name: "AuthRequestError",
-      status: 200,
-      details: [{ message: "email has already been taken" }],
-    });
-  });
-
-  it("throws when the login response omits token fields", async () => {
-    fetchMock.mockResolvedValue(
-      mockJsonResponse({ data: { login: {} } }),
-    );
-
-    await expect(
-      login({ email: "person@example.com", password: "secret" }),
-    ).rejects.toBeInstanceOf(AuthRequestError);
-  });
-
-  it("treats empty logout responses as success", async () => {
-    fetchMock.mockResolvedValue(
-      mockJsonResponse({ data: { logout: null } }),
-    );
-
-    await expect(logout({ accessToken: tokensFixture.accessToken })).resolves.toEqual({
-      success: true,
-    });
   });
 
   it("throws when JSON parsing fails", async () => {
@@ -278,7 +275,7 @@ describe("auth API", () => {
     );
 
     await expect(
-      login({ email: "person@example.com", password: "secret" }),
+      signIn({ email: "person@example.com", password: "secret" }),
     ).rejects.toMatchObject({
       name: "AuthRequestError",
       status: 200,
