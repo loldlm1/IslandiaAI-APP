@@ -1,15 +1,7 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
-
-async function completeSignIn(page: Page) {
-  await page.goto("/signin");
-
-  await page.getByLabel(/email/i).fill("isla@example.com");
-  await page.getByLabel(/^password/i).fill("password123");
-  await page.getByRole("button", { name: /sign in/i }).click();
-
-  await page.waitForURL("**/dashboard");
-}
+import { completeSignIn } from "./support/auth";
+import { resolveGraphQLEndpoint } from "./support/graphql";
 
 async function captureSignOutLocale(page: Page, graphqlUrl: string) {
   await page.getByRole("button", { name: /isla innovator/i }).click();
@@ -34,17 +26,6 @@ async function captureSignOutLocale(page: Page, graphqlUrl: string) {
   const body = JSON.parse(request.postData() ?? "{}");
 
   return body.locale as string | undefined;
-}
-
-function resolveGraphQLEndpoint() {
-  const envGraphql = process.env.NEXT_PUBLIC_GRAPHQL_URL;
-
-  if (envGraphql) {
-    return envGraphql;
-  }
-
-  const port = process.env.PORT ?? "43111";
-  return `http://127.0.0.1:${port}/api/mock/graphql`;
 }
 
 test.describe("locale propagation", () => {
