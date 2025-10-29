@@ -5,6 +5,12 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { AuthRequestError, signIn as signInMutation, signOut as signOutMutation } from "./api";
 import { parseLocaleFromCookieHeader } from "@/src/lib/locale/utils";
 
+const developmentUrl = `http://127.0.0.1:${process.env.PORT ?? "43111"}`;
+
+if (!process.env.NEXTAUTH_URL && process.env.NODE_ENV !== "production") {
+  process.env.NEXTAUTH_URL = developmentUrl;
+}
+
 interface ParsedCookiePayload {
   sameSite?: "lax" | "strict" | "none";
   name: string;
@@ -113,22 +119,8 @@ async function applyGraphqlCookies(setCookies: string[]): Promise<void> {
   }
 }
 
-function getNextAuthUrl(): string | undefined {
-  if (process.env.NEXTAUTH_URL) {
-    return process.env.NEXTAUTH_URL;
-  }
-
-  if (process.env.NODE_ENV === "development") {
-    const port = process.env.PORT ?? "43111";
-    return `http://127.0.0.1:${port}`;
-  }
-
-  return undefined;
-}
-
 export const authOptions: NextAuthOptions = {
   trustHost: true,
-  url: getNextAuthUrl(),
   useSecureCookies: process.env.NODE_ENV === "production",
   secret:
     process.env.NEXTAUTH_SECRET ??
