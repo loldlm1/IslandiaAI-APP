@@ -86,12 +86,12 @@ function parseSetCookieHeader(setCookie: string): ParsedCookiePayload | null {
   };
 }
 
-function applyGraphqlCookies(setCookies: string[]): void {
+async function applyGraphqlCookies(setCookies: string[]): Promise<void> {
   if (!setCookies.length) {
     return;
   }
 
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
 
   for (const setCookie of setCookies) {
     const parsed = parseSetCookieHeader(setCookie);
@@ -116,6 +116,9 @@ function applyGraphqlCookies(setCookies: string[]): void {
 export const authOptions: NextAuthOptions = {
   trustHost: true,
   useSecureCookies: process.env.NODE_ENV === "production",
+  secret:
+    process.env.NEXTAUTH_SECRET ??
+    (process.env.NODE_ENV === "production" ? undefined : "development-nextauth-secret"),
   session: {
     strategy: "jwt",
   },
@@ -153,7 +156,7 @@ export const authOptions: NextAuthOptions = {
             throw new AuthRequestError("Authentication response did not include a user");
           }
 
-          applyGraphqlCookies(result.setCookies);
+          await applyGraphqlCookies(result.setCookies);
 
           return {
             id: viewer.id,
@@ -205,7 +208,7 @@ export const authOptions: NextAuthOptions = {
   events: {
     async signOut() {
       try {
-        const headerStore = headers();
+        const headerStore = await headers();
         const cookieHeader = headerStore.get("cookie");
         const locale = parseLocaleFromCookieHeader(cookieHeader);
 
@@ -218,7 +221,7 @@ export const authOptions: NextAuthOptions = {
           locale,
         });
 
-        applyGraphqlCookies(result.setCookies);
+        await applyGraphqlCookies(result.setCookies);
       } catch (error) {
         console.error("Failed to clear authentication cookies", error);
       }
