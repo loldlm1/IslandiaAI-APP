@@ -2,8 +2,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import SignUpForm from "./SignUpForm";
 
-import { AuthRequestError, register } from "@/src/lib/auth/api";
+import { AuthRequestError, signUp } from "@/src/lib/auth/api";
 import { useRouter } from "next/navigation";
+import { DEFAULT_LOCALE } from "@/src/lib/locale/constants";
+import { LocaleProvider } from "@tailadmin/context/LocaleContext";
 
 jest.mock("next/navigation", () => ({
   useRouter: jest.fn(),
@@ -13,7 +15,7 @@ jest.mock("@/src/lib/auth/api", () => {
   const actual = jest.requireActual("@/src/lib/auth/api");
   return {
     ...actual,
-    register: jest.fn(),
+    signUp: jest.fn(),
   };
 });
 
@@ -21,7 +23,7 @@ describe("SignUpForm", () => {
   const push = jest.fn();
   const refresh = jest.fn();
   const useRouterMock = useRouter as jest.MockedFunction<typeof useRouter>;
-  const registerMock = register as jest.MockedFunction<typeof register>;
+  const signUpMock = signUp as jest.MockedFunction<typeof signUp>;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -30,6 +32,14 @@ describe("SignUpForm", () => {
       refresh,
     } as unknown as ReturnType<typeof useRouter>);
   });
+
+  function renderForm() {
+    return render(
+      <LocaleProvider initialLocale={DEFAULT_LOCALE}>
+        <SignUpForm />
+      </LocaleProvider>,
+    );
+  }
 
   function fillRequiredFields() {
     fireEvent.change(screen.getByLabelText(/full name/i), {
@@ -47,7 +57,7 @@ describe("SignUpForm", () => {
   }
 
   it("shows validation errors for missing values", async () => {
-    render(<SignUpForm />);
+    renderForm();
 
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
 
@@ -59,29 +69,34 @@ describe("SignUpForm", () => {
     expect(
       await screen.findByText("Confirm your password."),
     ).toBeInTheDocument();
-    expect(registerMock).not.toHaveBeenCalled();
+    expect(signUpMock).not.toHaveBeenCalled();
   });
 
   it("submits registration details and redirects to sign in", async () => {
-    registerMock.mockResolvedValueOnce({
+    signUpMock.mockResolvedValueOnce({
       user: {
         id: "user_124",
         email: "new@example.com",
         name: "Jane Doe",
       },
+      userErrors: [],
     });
 
-    render(<SignUpForm />);
+    renderForm();
     fillRequiredFields();
 
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
 
     await waitFor(() =>
-      expect(registerMock).toHaveBeenCalledWith({
-        name: "Jane Doe",
-        email: "new@example.com",
-        password: "password123",
-      }),
+      expect(signUpMock).toHaveBeenCalledWith(
+        {
+          name: "Jane Doe",
+          email: "new@example.com",
+          password: "password123",
+          passwordConfirmation: "password123",
+        },
+        { locale: DEFAULT_LOCALE },
+      ),
     );
 
     expect(push).toHaveBeenCalledWith("/signin?registered=1");
@@ -89,11 +104,11 @@ describe("SignUpForm", () => {
   });
 
   it("surfaces API errors returned from registration", async () => {
-    registerMock.mockRejectedValueOnce(
+    signUpMock.mockRejectedValueOnce(
       new AuthRequestError("Email already registered"),
     );
 
-    render(<SignUpForm />);
+    renderForm();
     fillRequiredFields();
 
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));

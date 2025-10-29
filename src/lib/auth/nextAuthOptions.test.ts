@@ -9,10 +9,14 @@ jest.mock("./api", () => {
 });
 
 import { authOptions } from "./nextAuthOptions";
-import { AuthRequestError, signIn } from "./api";
+import { signIn } from "./api";
 import { mockUser } from "@/src/mocks/handlers/auth";
+import { DEFAULT_LOCALE } from "@/src/lib/locale/constants";
 
-type AuthorizeFn = (credentials?: Record<string, unknown>) => Promise<unknown>;
+type AuthorizeFn = (
+  credentials?: Record<string, unknown>,
+  req?: { headers?: Record<string, string | undefined> },
+) => Promise<unknown>;
 
 describe("nextAuthOptions", () => {
   const getAuthorize = (): AuthorizeFn => {
@@ -45,7 +49,7 @@ describe("nextAuthOptions", () => {
     const authorize = getAuthorize();
     const result = await authorize(validCredentials);
 
-    expect(signInMock).toHaveBeenCalledWith(validCredentials);
+    expect(signInMock).toHaveBeenCalledWith(validCredentials, { locale: DEFAULT_LOCALE });
     expect(result).toEqual({
       id: mockUser.id,
       name: mockUser.name,
@@ -76,6 +80,15 @@ describe("nextAuthOptions", () => {
       message: "Invalid credentials",
       details: [{ message: "Invalid credentials", path: ["credentials", "password"] }],
     });
+  });
+
+  it("passes the locale from cookies to the sign-in mutation", async () => {
+    signInMock.mockResolvedValue({ user: mockUser, userErrors: [] });
+
+    const authorize = getAuthorize();
+    await authorize(validCredentials, { headers: { cookie: "locale=es" } });
+
+    expect(signInMock).toHaveBeenCalledWith(validCredentials, { locale: "es" });
   });
 
   it("throws when the API does not return a user", async () => {

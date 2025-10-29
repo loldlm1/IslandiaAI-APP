@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { Geist, Geist_Mono, Outfit } from "next/font/google";
 import "./globals.css";
 import { TailAdminProviders } from "@tailadmin/providers";
+import { DEFAULT_LOCALE, LOCALE_COOKIE_NAME } from "@/src/lib/locale/constants";
+import { normalizeLocale } from "@/src/lib/locale/utils";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,12 +31,16 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = cookies();
+  const localeCookie = cookieStore.get(LOCALE_COOKIE_NAME)?.value;
+  const initialLocale = normalizeLocale(localeCookie ?? DEFAULT_LOCALE);
+
   return (
-    <html lang="en">
+    <html lang={initialLocale}>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${outfit.variable} antialiased`}
       >
-        <TailAdminProviders>{children}</TailAdminProviders>
+        <TailAdminProviders initialLocale={initialLocale}>{children}</TailAdminProviders>
       </body>
     </html>
   );

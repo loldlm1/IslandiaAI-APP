@@ -1,13 +1,21 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { LocaleProvider } from "./context/LocaleContext";
 import { SidebarProvider } from "./context/SidebarContext";
 import { ThemeProvider } from "./context/ThemeContext";
 
-export function TailAdminProviders({ children }: { children: ReactNode }) {
+interface TailAdminProvidersProps {
+  children: ReactNode;
+  initialLocale?: string | null;
+}
+
+export function TailAdminProviders({ children, initialLocale }: TailAdminProvidersProps) {
   return (
-    <ThemeProvider>
-      <SidebarProvider>{children}</SidebarProvider>
-    </ThemeProvider>
+    <LocaleProvider initialLocale={initialLocale}>
+      <ThemeProvider>
+        <SidebarProvider>{children}</SidebarProvider>
+      </ThemeProvider>
+    </LocaleProvider>
   );
 }

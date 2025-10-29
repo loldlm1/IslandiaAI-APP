@@ -3,6 +3,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 
 import { signOut as signOutMutation } from "@/src/lib/auth/api";
+import { useLocale } from "@tailadmin/context/LocaleContext";
 
 import AvatarText from "../ui/avatar/AvatarText";
 import { Dropdown } from "../ui/dropdown/Dropdown";
@@ -12,6 +13,7 @@ export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const { data: session, status } = useSession();
+  const { locale } = useLocale();
 
   const toggleDropdown = useCallback(
     (event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
@@ -52,7 +54,7 @@ export default function UserDropdown() {
     setIsSigningOut(true);
 
     try {
-      const result = await signOutMutation();
+      const result = await signOutMutation({ locale });
       if (result.userErrors.length > 0) {
         const message = result.userErrors.map((error) => error.message).join(" ");
         throw new Error(message);
@@ -63,7 +65,7 @@ export default function UserDropdown() {
       await signOut({ callbackUrl: "/signin" });
       setIsSigningOut(false);
     }
-  }, [closeDropdown, isSigningOut]);
+  }, [closeDropdown, isSigningOut, locale]);
 
   const signOutLabel = isSigningOut ? "Signing out..." : "Sign out";
   const signOutClasses = isSigningOut

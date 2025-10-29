@@ -1,11 +1,13 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import UserDropdown from "./UserDropdown";
-
 import { signOut, useSession } from "next-auth/react";
 
 import { signOut as signOutMutation } from "@/src/lib/auth/api";
 import type { SignOutResult } from "@/src/lib/auth/types";
+import { DEFAULT_LOCALE } from "@/src/lib/locale/constants";
+import { LocaleProvider } from "@tailadmin/context/LocaleContext";
+
+import UserDropdown from "./UserDropdown";
 
 jest.mock("next-auth/react", () => ({
   useSession: jest.fn(),
@@ -36,7 +38,11 @@ describe("UserDropdown", () => {
   }
 
   const renderComponent = () => {
-    render(<UserDropdown />);
+    render(
+      <LocaleProvider initialLocale={DEFAULT_LOCALE}>
+        <UserDropdown />
+      </LocaleProvider>,
+    );
     fireEvent.click(screen.getByRole("button", { name: /test user/i }));
   };
 
@@ -75,6 +81,7 @@ describe("UserDropdown", () => {
 
     mutationDeferred.resolve({ user: null, userErrors: [] });
     await waitFor(() => expect(signOutMock).toHaveBeenCalledWith({ callbackUrl: "/signin" }));
+    expect(signOutMutationMock).toHaveBeenCalledWith({ locale: DEFAULT_LOCALE });
 
     signOutDeferred.resolve();
     await waitFor(() =>
@@ -96,6 +103,7 @@ describe("UserDropdown", () => {
     await waitFor(() =>
       expect(signOutMock).toHaveBeenCalledWith({ callbackUrl: "/signin" }),
     );
+    expect(signOutMutationMock).toHaveBeenCalledWith({ locale: DEFAULT_LOCALE });
 
     fireEvent.click(screen.getByRole("button", { name: /test user/i }));
 
@@ -126,6 +134,7 @@ describe("UserDropdown", () => {
     await waitFor(() =>
       expect(signOutMock).toHaveBeenCalledWith({ callbackUrl: "/signin" }),
     );
+    expect(signOutMutationMock).toHaveBeenCalledWith({ locale: DEFAULT_LOCALE });
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       "Failed to revoke session",

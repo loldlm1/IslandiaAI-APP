@@ -7,6 +7,7 @@ import { signOut } from "next-auth/react";
 import { useEffect, useState } from "react";
 
 import { signOut as signOutMutation } from "@/src/lib/auth/api";
+import { useLocale } from "@tailadmin/context/LocaleContext";
 
 type SignOutState = "loading" | "success" | "error";
 
@@ -14,13 +15,14 @@ export default function SignOutContent() {
   const router = useRouter();
   const [state, setState] = useState<SignOutState>("loading");
   const [error, setError] = useState<string | null>(null);
+  const { locale } = useLocale();
 
   useEffect(() => {
     let isMounted = true;
 
     const performSignOut = async () => {
       try {
-        const result = await signOutMutation();
+        const result = await signOutMutation({ locale });
 
         if (result.userErrors.length > 0) {
           const messages = result.userErrors.map((error) => error.message);
@@ -50,7 +52,7 @@ export default function SignOutContent() {
     return () => {
       isMounted = false;
     };
-  }, [router]);
+  }, [locale, router]);
 
   return (
     <div className="flex w-full flex-1 flex-col items-center justify-center lg:w-1/2">
