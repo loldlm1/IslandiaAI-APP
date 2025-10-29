@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 
 import {
+  buildAuthUser,
   buildErrorResponse,
-  buildSignInErrors,
   buildSignInSuccess,
   buildSignOutSuccess,
   buildSignUpErrors,
@@ -14,6 +14,8 @@ import {
 
 const SESSION_COOKIE_NAME = "islandia_session";
 const SESSION_COOKIE_VALUE = "mock-session";
+
+let sessionUser = mockAuthUser;
 
 interface GraphQLRequest {
   operationName?: string;
@@ -36,13 +38,11 @@ export async function POST(request: NextRequest) {
       const variables = (body.variables ?? {}) as {
         input?: { credentials?: { email?: string; password?: string } };
       };
-      const password = variables.input?.credentials?.password ?? "";
+      const email = variables.input?.credentials?.email ?? mockAuthUser.email;
 
-      if (password !== "password123") {
-        return jsonResponse(buildSignInErrors([{ message: "Invalid credentials", path: ["credentials", "password"] }]));
-      }
+      sessionUser = buildAuthUser({ email });
 
-      return jsonResponse(buildSignInSuccess(), {
+      return jsonResponse(buildSignInSuccess({ email }), {
         headers: {
           "Set-Cookie": `${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}; Path=/; HttpOnly`,
         },
@@ -61,6 +61,8 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      sessionUser = buildAuthUser({ id: "user_124", email, name });
+
       return jsonResponse(
         buildSignUpSuccess({
           email,
@@ -74,6 +76,7 @@ export async function POST(request: NextRequest) {
       );
     }
     case "SignOut": {
+      sessionUser = mockAuthUser;
       return jsonResponse(buildSignOutSuccess(), {
         headers: {
           "Set-Cookie": `${SESSION_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly`,
@@ -85,7 +88,7 @@ export async function POST(request: NextRequest) {
         return jsonResponse(buildUnauthorizedError());
       }
 
-      return jsonResponse(buildViewerSuccess());
+      return jsonResponse(buildViewerSuccess(sessionUser));
     }
     default: {
       const message = operation

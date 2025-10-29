@@ -1,6 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { buildSignUpErrors, buildSignUpSuccess } from "@/tests/mocks/graphql";
+import {
+  buildSignOutSuccess,
+  buildSignUpErrors,
+  buildSignUpSuccess,
+} from "@/tests/mocks/graphql";
 
 import { completeSignIn } from "./support/auth";
 import { mockGraphQLOperation } from "./support/graphql";
@@ -35,10 +39,18 @@ test.describe("authentication flows", () => {
   test("signs out and returns to the sign-in page", async ({ page }) => {
     await completeSignIn(page);
 
-    await page.goto("/signout");
-    await page.waitForURL("**/signin", { timeout: 30000 });
+    const teardown = await mockGraphQLOperation(page, "SignOut", {
+      body: buildSignOutSuccess(),
+    });
 
-    await expect(page.getByRole("heading", { name: /sign in/i })).toBeVisible({ timeout: 10000 });
+    try {
+      await page.goto("/signout");
+      await page.waitForURL("**/signin", { timeout: 30000 });
+
+      await expect(page.getByRole("heading", { name: /sign in/i })).toBeVisible({ timeout: 10000 });
+    } finally {
+      await teardown();
+    }
   });
 
   test("redirects authenticated users away from the sign-in form", async ({ page }) => {

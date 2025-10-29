@@ -1,10 +1,16 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
+import { buildSignOutSuccess } from "@/tests/mocks/graphql";
+
 import { completeSignIn } from "./support/auth";
-import { resolveGraphQLEndpoint } from "./support/graphql";
+import { mockGraphQLOperation, resolveGraphQLEndpoint } from "./support/graphql";
 
 async function captureSignOutLocale(page: Page, graphqlUrl: string) {
-  await page.getByRole("button", { name: /isla innovator/i }).click();
+  const userMenuTrigger = page
+    .locator("button.dropdown-toggle")
+    .filter({ has: page.locator("span.font-medium") });
+
+  await userMenuTrigger.first().click();
 
   const requestPromise = page.waitForRequest((request) => {
     if (request.url() !== graphqlUrl || request.method() !== "POST") {
@@ -20,12 +26,20 @@ async function captureSignOutLocale(page: Page, graphqlUrl: string) {
     }
   });
 
-  await page.getByRole("button", { name: /sign out/i }).click();
+  const teardown = await mockGraphQLOperation(page, "SignOut", {
+    body: buildSignOutSuccess(),
+  });
 
-  const request = await requestPromise;
-  const body = JSON.parse(request.postData() ?? "{}");
+  try {
+    await page.getByRole("button", { name: /sign out/i }).click();
 
-  return body.locale as string | undefined;
+    const request = await requestPromise;
+    const body = JSON.parse(request.postData() ?? "{}");
+
+    return body.locale as string | undefined;
+  } finally {
+    await teardown();
+  }
 }
 
 test.describe("locale propagation", () => {
