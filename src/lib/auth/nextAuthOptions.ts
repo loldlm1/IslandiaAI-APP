@@ -113,8 +113,22 @@ async function applyGraphqlCookies(setCookies: string[]): Promise<void> {
   }
 }
 
+function getNextAuthUrl(): string | undefined {
+  if (process.env.NEXTAUTH_URL) {
+    return process.env.NEXTAUTH_URL;
+  }
+
+  if (process.env.NODE_ENV === "development") {
+    const port = process.env.PORT ?? "43111";
+    return `http://127.0.0.1:${port}`;
+  }
+
+  return undefined;
+}
+
 export const authOptions: NextAuthOptions = {
   trustHost: true,
+  url: getNextAuthUrl(),
   useSecureCookies: process.env.NODE_ENV === "production",
   secret:
     process.env.NEXTAUTH_SECRET ??
@@ -203,6 +217,15 @@ export const authOptions: NextAuthOptions = {
       }
 
       return session;
+    },
+    async redirect({ url, baseUrl }) {
+      if (url.startsWith("/")) {
+        return `${baseUrl}${url}`;
+      }
+      if (new URL(url).origin === baseUrl) {
+        return url;
+      }
+      return baseUrl;
     },
   },
   events: {
