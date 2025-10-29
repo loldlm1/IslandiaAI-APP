@@ -5,6 +5,8 @@ import { AuthRequestError, signIn as signInMutation } from "./api";
 import { parseLocaleFromCookieHeader } from "@/src/lib/locale/utils";
 
 export const authOptions: NextAuthOptions = {
+  trustHost: true,
+  useSecureCookies: process.env.NODE_ENV === "production",
   session: {
     strategy: "jwt",
   },
