@@ -1,4 +1,4 @@
-import { http, HttpResponse } from "msw";
+import { graphql, HttpResponse } from "msw";
 
 import type { LoginPayload, RegisterPayload } from "@/src/lib/auth/types";
 import {
@@ -16,31 +16,28 @@ export const mockRefreshToken = factoryRefreshToken ?? undefined;
 export const mockUser = mockAuthUser;
 
 export const authHandlers = [
-  http.post("*/oauth/token", async ({ request }) => {
-    const body = (await request.json()) as Partial<LoginPayload> & {
-      username?: string;
-    };
-    const password = body.password ?? "";
+  graphql.mutation("Login", async ({ variables }) => {
+    const input = (variables as { input?: Partial<LoginPayload> })?.input ?? {};
+    const password = input.password ?? "";
 
     if (password !== "password123") {
       return HttpResponse.json(buildAuthError("Invalid credentials"), {
-        status: 401,
+        status: 200,
       });
     }
 
     return HttpResponse.json(buildLoginSuccess(), { status: 200 });
   }),
-  http.post("*/users", async ({ request }) => {
-    const body = (await request.json()) as { user?: RegisterPayload };
-    const user = body.user ?? ({} as RegisterPayload);
-    const email = user.email ?? "";
-    const name = user.name ?? mockAuthUser.name;
+  graphql.mutation("RegisterUser", async ({ variables }) => {
+    const input = (variables as { input?: RegisterPayload })?.input ??
+      ({} as RegisterPayload);
+    const email = input.email ?? "";
+    const name = input.name ?? mockAuthUser.name;
 
     if (email === "taken@example.com") {
-      return HttpResponse.json(
-        buildAuthError("Email is already registered"),
-        { status: 422 },
-      );
+      return HttpResponse.json(buildAuthError("Email is already registered"), {
+        status: 200,
+      });
     }
 
     return HttpResponse.json(
@@ -48,10 +45,10 @@ export const authHandlers = [
         email,
         name,
       }),
-      { status: 201 },
+      { status: 200 },
     );
   }),
-  http.post("*/oauth/revoke", async () => {
+  graphql.mutation("Logout", async () => {
     return HttpResponse.json(buildLogoutSuccess(), { status: 200 });
   }),
 ];

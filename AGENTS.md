@@ -31,6 +31,7 @@ All quality gates must pass before committing.
 - Re-run `yarn codegen` whenever the schema changes.
 
 ## GraphQL and domain context
+- Authentication flows (login, register, logout) are modelled as GraphQL mutations alongside the rest of the API—do not introduce REST fallbacks for these flows.
 - Queries available: `viewer`, `node`, `nodes`, and domain fetchers for users, suppliers, customers, products, orders, product requests, invoices, invoice line items, and magic invoice submissions (with status/date filters).
 - Mutations: `createOrder`, `updateOrderStatus`, `submitMagicInvoice`.
 - Domain entities mirror the Rails architecture (users own suppliers/customers/products/orders; orders link product requests and invoices; invoices/line items reconcile financials; magic invoice submissions track ingestion status).
