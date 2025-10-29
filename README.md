@@ -52,7 +52,7 @@ This package contains the Next.js interface for IslandiaAI. It consumes the Rail
 
 ### Updating MSW fixtures
 - Centralize GraphQL auth mocks in:
-  - `src/mocks/handlers/auth.ts` – login, register, and logout mutations.
+- `src/mocks/handlers/auth.ts` – signIn, signUp, and signOut mutations.
   - `src/mocks/handlers/dashboard.ts` – viewer query used for session bootstrapping.
   - `app/api/mock/graphql/route.ts` – local GraphQL endpoint consumed during Playwright runs.
 - When backend auth contracts change, update the fixtures above, then re-run `yarn lint`, `yarn test`, and `yarn test:e2e` to confirm parity across component, integration, and E2E suites.

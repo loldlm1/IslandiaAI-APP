@@ -7,7 +7,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
-import { AuthRequestError, register } from "@/src/lib/auth/api";
+import { AuthRequestError, signUp } from "@/src/lib/auth/api";
+import type { UserError } from "@/src/lib/auth/types";
 
 const emailRegex = /.+@.+\..+/;
 
@@ -55,7 +56,45 @@ export default function SignUpForm() {
       name,
       email,
       password,
+      confirmPassword,
     };
+  }, []);
+
+  const applyUserErrors = useCallback((errors: UserError[]) => {
+    if (!errors.length) {
+      return null;
+    }
+
+    const nextFieldErrors: FieldErrors = {};
+    const generalErrors: string[] = [];
+
+    for (const error of errors) {
+      const path = error.path ?? [];
+      const field = path.find((segment) =>
+        ["email", "name", "password", "passwordConfirmation"].includes(segment),
+      );
+
+      switch (field) {
+        case "email":
+          nextFieldErrors.email = error.message;
+          break;
+        case "name":
+          nextFieldErrors.name = error.message;
+          break;
+        case "password":
+          nextFieldErrors.password = error.message;
+          break;
+        case "passwordConfirmation":
+          nextFieldErrors.confirmPassword = error.message;
+          break;
+        default:
+          generalErrors.push(error.message);
+      }
+    }
+
+    setFieldErrors(nextFieldErrors);
+
+    return generalErrors.length ? generalErrors.join(" ") : null;
   }, []);
 
   const handleSubmit = useCallback(
@@ -64,7 +103,7 @@ export default function SignUpForm() {
       setError(null);
 
       const formData = new FormData(event.currentTarget);
-      const { isValid, name, email, password } = validate(formData);
+      const { isValid, name, email, password, confirmPassword } = validate(formData);
 
       if (!isValid) {
         return;
@@ -72,11 +111,23 @@ export default function SignUpForm() {
 
       try {
         setIsSubmitting(true);
-        await register({
+        const result = await signUp({
           name,
           email,
           password,
+          passwordConfirmation: confirmPassword,
         });
+
+        if (result.userErrors.length > 0) {
+          const message = applyUserErrors(result.userErrors);
+          setError(message);
+          setIsSubmitting(false);
+          return;
+        }
+
+        if (!result.user) {
+          throw new AuthRequestError("We couldn't create your account. Please try again.");
+        }
 
         router.push("/signin?registered=1");
         router.refresh();
@@ -89,7 +140,7 @@ export default function SignUpForm() {
         setIsSubmitting(false);
       }
     },
-    [router, validate],
+    [applyUserErrors, router, validate],
   );
 
   return (

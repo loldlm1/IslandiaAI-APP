@@ -1,16 +1,15 @@
 import { graphql, HttpResponse } from "msw";
 
-import {
-  buildUnauthorizedError,
-  buildViewerSuccess,
-  mockAccessToken,
-} from "@/tests/mocks/graphql";
+import { buildUnauthorizedError, buildViewerSuccess } from "@/tests/mocks/graphql";
+
+const SESSION_COOKIE_NAME = "islandia_session";
+const SESSION_COOKIE_VALUE = "mock-session";
 
 export const dashboardHandlers = [
   graphql.query("Viewer", async ({ request }) => {
-    const authHeader = request.headers.get("authorization");
+    const cookieHeader = request.headers.get("cookie") ?? "";
 
-    if (!authHeader || !authHeader.includes(mockAccessToken)) {
+    if (!cookieHeader.includes(`${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}`)) {
       return HttpResponse.json(buildUnauthorizedError(), { status: 200 });
     }
 

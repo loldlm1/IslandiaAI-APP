@@ -34,8 +34,6 @@ function createSession(overrides: Partial<Session> = {}): Session {
       name: "Test User",
     },
     expires: new Date(Date.now() + 60_000).toISOString(),
-    accessToken: "access-token",
-    refreshToken: "refresh-token",
     ...overrides,
   } as Session;
 }

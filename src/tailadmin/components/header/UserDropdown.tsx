@@ -2,7 +2,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 
-import { logout } from "@/src/lib/auth/api";
+import { signOut as signOutMutation } from "@/src/lib/auth/api";
 
 import AvatarText from "../ui/avatar/AvatarText";
 import { Dropdown } from "../ui/dropdown/Dropdown";
@@ -52,9 +52,10 @@ export default function UserDropdown() {
     setIsSigningOut(true);
 
     try {
-      const accessToken = session?.accessToken;
-      if (accessToken) {
-        await logout({ accessToken });
+      const result = await signOutMutation();
+      if (result.userErrors.length > 0) {
+        const message = result.userErrors.map((error) => error.message).join(" ");
+        throw new Error(message);
       }
     } catch (error) {
       console.error("Failed to revoke session", error);
@@ -62,7 +63,7 @@ export default function UserDropdown() {
       await signOut({ callbackUrl: "/signin" });
       setIsSigningOut(false);
     }
-  }, [closeDropdown, isSigningOut, session?.accessToken]);
+  }, [closeDropdown, isSigningOut]);
 
   const signOutLabel = isSigningOut ? "Signing out..." : "Sign out";
   const signOutClasses = isSigningOut

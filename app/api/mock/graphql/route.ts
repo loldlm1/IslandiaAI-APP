@@ -1,16 +1,19 @@
 import { NextRequest } from "next/server";
 
 import {
-  buildAuthError,
   buildErrorResponse,
-  buildLoginSuccess,
-  buildLogoutSuccess,
-  buildRegisterSuccess,
+  buildSignInErrors,
+  buildSignInSuccess,
+  buildSignOutSuccess,
+  buildSignUpErrors,
+  buildSignUpSuccess,
   buildUnauthorizedError,
   buildViewerSuccess,
-  mockAccessToken,
   mockAuthUser,
 } from "@/tests/mocks/graphql";
+
+const SESSION_COOKIE_NAME = "islandia_session";
+const SESSION_COOKIE_VALUE = "mock-session";
 
 interface GraphQLRequest {
   operationName?: string;
@@ -24,45 +27,60 @@ function jsonResponse(body: unknown, init?: ResponseInit) {
 export async function POST(request: NextRequest) {
   const body = (await request.json()) as GraphQLRequest;
   const operation = body.operationName;
+  const cookieHeader = request.headers.get("cookie") ?? "";
+  const hasSessionCookie = cookieHeader.includes(`${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}`);
 
   switch (operation) {
-    case "Login": {
+    case "SignIn": {
       const variables = (body.variables ?? {}) as {
-        input?: Partial<{ email: string; password: string }>;
+        input?: { credentials?: { email?: string; password?: string } };
       };
-      const password = variables.input?.password ?? "";
+      const password = variables.input?.credentials?.password ?? "";
 
       if (password !== "password123") {
-        return jsonResponse(buildAuthError("Invalid credentials"));
+        return jsonResponse(buildSignInErrors([{ message: "Invalid credentials", path: ["credentials", "password"] }]));
       }
 
-      return jsonResponse(buildLoginSuccess());
+      return jsonResponse(buildSignInSuccess(), {
+        headers: {
+          "Set-Cookie": `${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}; Path=/; HttpOnly`,
+        },
+      });
     }
-    case "RegisterUser": {
+    case "SignUp": {
       const variables = (body.variables ?? {}) as {
-        input?: Partial<{ email: string; name: string }>;
+        input?: { attributes?: { email?: string; name?: string } };
       };
-      const email = variables.input?.email ?? "";
-      const name = variables.input?.name ?? mockAuthUser.name;
+      const email = variables.input?.attributes?.email ?? "";
+      const name = variables.input?.attributes?.name ?? mockAuthUser.name;
 
       if (email === "taken@example.com") {
-        return jsonResponse(buildAuthError("Email is already registered"));
+        return jsonResponse(
+          buildSignUpErrors([{ message: "Email is already registered", path: ["attributes", "email"] }]),
+        );
       }
 
       return jsonResponse(
-        buildRegisterSuccess({
+        buildSignUpSuccess({
           email,
           name,
         }),
+        {
+          headers: {
+            "Set-Cookie": `${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}; Path=/; HttpOnly`,
+          },
+        },
       );
     }
-    case "Logout": {
-      return jsonResponse(buildLogoutSuccess());
+    case "SignOut": {
+      return jsonResponse(buildSignOutSuccess(), {
+        headers: {
+          "Set-Cookie": `${SESSION_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly`,
+        },
+      });
     }
     case "Viewer": {
-      const authHeader = request.headers.get("authorization");
-
-      if (!authHeader || !authHeader.includes(mockAccessToken)) {
+      if (!hasSessionCookie) {
         return jsonResponse(buildUnauthorizedError());
       }
 

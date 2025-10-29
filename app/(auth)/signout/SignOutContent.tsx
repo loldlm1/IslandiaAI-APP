@@ -3,10 +3,10 @@
 import Button from "@tailadmin/components/ui/button/Button";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getSession, signOut } from "next-auth/react";
+import { signOut } from "next-auth/react";
 import { useEffect, useState } from "react";
 
-import { logout } from "@/src/lib/auth/api";
+import { signOut as signOutMutation } from "@/src/lib/auth/api";
 
 type SignOutState = "loading" | "success" | "error";
 
@@ -20,9 +20,11 @@ export default function SignOutContent() {
 
     const performSignOut = async () => {
       try {
-        const session = await getSession();
-        if (session?.accessToken) {
-          await logout({ accessToken: session.accessToken });
+        const result = await signOutMutation();
+
+        if (result.userErrors.length > 0) {
+          const messages = result.userErrors.map((error) => error.message);
+          throw new Error(messages.join(" "));
         }
 
         await signOut({ redirect: false });
@@ -32,10 +34,14 @@ export default function SignOutContent() {
         setState("success");
         router.replace("/signin");
         router.refresh();
-      } catch {
+      } catch (error) {
         if (!isMounted) return;
         setState("error");
-        setError("We couldn't complete your sign out. Please try again.");
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : "We couldn't complete your sign out. Please try again.";
+        setError(message);
       }
     };
 

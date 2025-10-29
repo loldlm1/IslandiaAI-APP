@@ -4,7 +4,8 @@ import UserDropdown from "./UserDropdown";
 
 import { signOut, useSession } from "next-auth/react";
 
-import { logout } from "@/src/lib/auth/api";
+import { signOut as signOutMutation } from "@/src/lib/auth/api";
+import type { SignOutResult } from "@/src/lib/auth/types";
 
 jest.mock("next-auth/react", () => ({
   useSession: jest.fn(),
@@ -15,14 +16,14 @@ jest.mock("@/src/lib/auth/api", () => {
   const actual = jest.requireActual("@/src/lib/auth/api");
   return {
     ...actual,
-    logout: jest.fn(),
+    signOut: jest.fn(),
   };
 });
 
 describe("UserDropdown", () => {
   const useSessionMock = useSession as jest.MockedFunction<typeof useSession>;
   const signOutMock = signOut as jest.MockedFunction<typeof signOut>;
-  const logoutMock = logout as jest.MockedFunction<typeof logout>;
+  const signOutMutationMock = signOutMutation as jest.MockedFunction<typeof signOutMutation>;
 
   function createDeferred<T>() {
     let resolve!: (value: T | PromiseLike<T>) => void;
@@ -44,19 +45,18 @@ describe("UserDropdown", () => {
     useSessionMock.mockReturnValue({
       data: {
         user: { name: "Test User", email: "test@example.com" },
-        accessToken: "token-abc",
       },
       status: "authenticated",
       update: jest.fn(),
     } as unknown as ReturnType<typeof useSession>);
     signOutMock.mockResolvedValue(undefined as never);
-    logoutMock.mockResolvedValue(undefined);
+    signOutMutationMock.mockResolvedValue({ user: null, userErrors: [] });
   });
 
   it("disables the sign out action while the request is in flight", async () => {
-    const logoutDeferred = createDeferred<void>();
+    const mutationDeferred = createDeferred<SignOutResult>();
     const signOutDeferred = createDeferred<void>();
-    logoutMock.mockReturnValueOnce(logoutDeferred.promise);
+    signOutMutationMock.mockReturnValueOnce(mutationDeferred.promise);
     signOutMock.mockReturnValueOnce(signOutDeferred.promise as never);
 
     renderComponent();
@@ -73,27 +73,12 @@ describe("UserDropdown", () => {
     expect(signingOutButton).toHaveClass("pointer-events-none");
     expect(signingOutButton).toHaveClass("opacity-60");
 
-    logoutDeferred.resolve();
-    await waitFor(() =>
-      expect(signOutMock).toHaveBeenCalledWith({ callbackUrl: "/signin" }),
-    );
+    mutationDeferred.resolve({ user: null, userErrors: [] });
+    await waitFor(() => expect(signOutMock).toHaveBeenCalledWith({ callbackUrl: "/signin" }));
 
     signOutDeferred.resolve();
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /sign out/i })).toBeInTheDocument(),
-    );
-  });
-
-  it("passes the active access token to the logout mutation", async () => {
-    renderComponent();
-
-    fireEvent.click(screen.getByRole("button", { name: /sign out/i }));
-
-    await waitFor(() =>
-      expect(logoutMock).toHaveBeenCalledWith({ accessToken: "token-abc" }),
-    );
-    await waitFor(() =>
-      expect(signOutMock).toHaveBeenCalledWith({ callbackUrl: "/signin" }),
     );
   });
 
@@ -102,7 +87,7 @@ describe("UserDropdown", () => {
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
 
-    logoutMock.mockRejectedValueOnce(new Error("Failed to revoke"));
+    signOutMutationMock.mockRejectedValueOnce(new Error("Failed to revoke"));
 
     renderComponent();
 
@@ -120,6 +105,32 @@ describe("UserDropdown", () => {
 
     expect(signOutButton).not.toHaveClass("pointer-events-none");
     expect(signOutButton).not.toHaveClass("opacity-60");
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("logs when the API returns user errors", async () => {
+    const consoleErrorSpy = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    signOutMutationMock.mockResolvedValueOnce({
+      user: null,
+      userErrors: [{ message: "Session could not be closed", path: [] }],
+    });
+
+    renderComponent();
+
+    fireEvent.click(screen.getByRole("button", { name: /sign out/i }));
+
+    await waitFor(() =>
+      expect(signOutMock).toHaveBeenCalledWith({ callbackUrl: "/signin" }),
+    );
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "Failed to revoke session",
+      expect.any(Error),
+    );
 
     consoleErrorSpy.mockRestore();
   });
