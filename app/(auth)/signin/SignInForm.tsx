@@ -99,7 +99,23 @@ export default function SignInForm() {
           return;
         }
 
-        router.push(result?.url ?? callbackUrl);
+        let redirectUrl = result?.url ?? callbackUrl;
+        if (redirectUrl) {
+          try {
+            const url = new URL(redirectUrl, window.location.origin);
+            redirectUrl = url.pathname + url.search + url.hash;
+          } catch {
+            if (redirectUrl.startsWith("/")) {
+              redirectUrl = redirectUrl;
+            } else {
+              redirectUrl = callbackUrl;
+            }
+          }
+        } else {
+          redirectUrl = callbackUrl;
+        }
+
+        router.push(redirectUrl);
         router.refresh();
       } catch {
         setError("Something went wrong while signing you in. Please try again.");

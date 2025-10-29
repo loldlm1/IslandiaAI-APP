@@ -10,7 +10,9 @@
 2. Copy `.env.example` to `.env.local` and set:
    - `NEXT_PUBLIC_GRAPHQL_URL` to the Rails GraphQL endpoint.
    - `GRAPHQL_SCHEMA_PATH=graphql/schema.graphql`.
-3. Ensure `graphql/schema.graphql` matches the Rails snapshot; regenerate it when backend changes land (see “Schema sync”).
+   - `NEXTAUTH_SECRET` – secret used to sign NextAuth JWT/session cookies (generate a random string in production). Must remain consistent to avoid decryption errors.
+   - `NEXTAUTH_URL` – (optional in development) the canonical URL. Defaults to `http://127.0.0.1:43111` in development. Required in production.
+3. Ensure `graphql/schema.graphql` matches the Rails snapshot; regenerate it when backend changes land (see "Schema sync").
 4. Execute `yarn codegen` before working on GraphQL-dependent code.
 
 ## Playwright prerequisites
@@ -22,7 +24,8 @@
 - `yarn lint` (fails on ESLint violations).
 - `yarn test` for Jest + React Testing Library with MSW.
 - `yarn coverage` to confirm coverage thresholds.
-- `yarn test:e2e` to run Playwright system flows.
+- `yarn test:e2e` to run Playwright system flows (uses mocked GraphQL by default).
+- `NEXT_PUBLIC_GRAPHQL_URL=http://localhost:3000/graphql yarn test:e2e` to run E2E tests against real GraphQL API.
 All quality gates must pass before committing.
 
 ## Schema sync

@@ -16,7 +16,8 @@ This package contains the Next.js interface for IslandiaAI. It consumes the Rail
 3. Copy `.env.example` to `.env.local`, then set:
    - `NEXT_PUBLIC_GRAPHQL_URL` – the backend GraphQL endpoint (e.g., `http://localhost:3000/graphql`).
    - `GRAPHQL_SCHEMA_PATH=graphql/schema.graphql` – location of the shared SDL snapshot for code generation.
-   - `NEXTAUTH_SECRET` – secret used to sign NextAuth JWT/session cookies (generate a random string in production).
+   - `NEXTAUTH_SECRET` – secret used to sign NextAuth JWT/session cookies (generate a random string in production). Must remain consistent across sessions to avoid decryption errors.
+   - `NEXTAUTH_URL` – (optional in development) the canonical URL of your site. Defaults to `http://127.0.0.1:43111` in development. Required in production.
 4. Generate typed operations: `yarn codegen`.
 5. Launch the development server: `yarn dev`.
 
@@ -58,10 +59,39 @@ This package contains the Next.js interface for IslandiaAI. It consumes the Rail
   - `app/api/mock/graphql/route.ts` – local GraphQL endpoint consumed during Playwright runs.
 - When backend auth contracts change, update the fixtures above, then re-run `yarn lint`, `yarn test`, and `yarn test:e2e` to confirm parity across component, integration, and E2E suites.
 
+### E2E Testing with Real GraphQL API
+- By default, E2E tests use mocked GraphQL endpoints via `app/api/mock/graphql/route.ts`.
+- To test against a real GraphQL API, set `NEXT_PUBLIC_GRAPHQL_URL` before running tests:
+  ```bash
+  NEXT_PUBLIC_GRAPHQL_URL=http://localhost:3000/graphql yarn test:e2e
+  ```
+- When using a real API, test timeouts are automatically increased (from 60s to 90s) to accommodate network latency.
+- Ensure your local GraphQL API is running and accessible before running E2E tests with real endpoints.
+- The viewer query is used for dashboard authentication—ensure your API supports the `viewer` query with proper cookie-based authentication.
+
 ## Conventions
 - Use functional React components with hooks and co-located fragments.
 - Keep GraphQL documents under `src/graphql/` and regenerate artifacts after schema changes.
 - Update this README whenever GraphQL operations, environment variables, or domain entities evolve.
+
+## Troubleshooting
+
+### JWT Decryption Errors
+If you encounter "decryption operation failed" errors during signin/signup:
+- Ensure `NEXTAUTH_SECRET` is set and remains consistent across sessions.
+- Clear browser cookies and restart the development server if the secret changed.
+- In development, a default secret is used if `NEXTAUTH_SECRET` is not set. In production, always set a strong, random secret.
+
+### Port 3000 Redirect Issues
+If redirects go to `localhost:3000` instead of the configured port:
+- Set `NEXTAUTH_URL` explicitly: `NEXTAUTH_URL=http://127.0.0.1:43111` (or your configured port).
+- The app defaults to port 43111 in development; ensure `NEXTAUTH_URL` matches your actual port.
+
+### E2E Test Timeouts
+If E2E tests timeout when redirecting to dashboard:
+- Test timeouts are automatically increased when using real GraphQL API (`NEXT_PUBLIC_GRAPHQL_URL`).
+- Ensure your GraphQL API responds within reasonable timeframes.
+- Check that the viewer query completes successfully for authenticated users.
 
 ## Additional references
 - Backend GraphQL docs (`docs/graphql/` in the Rails repository).
