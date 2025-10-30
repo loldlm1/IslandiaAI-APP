@@ -132,6 +132,44 @@ describe("nextAuthOptions", () => {
     );
   });
 
+  it("drops mismatched cookie domains so cookies apply to the request host", async () => {
+    headersMock.mockReturnValue(new Headers({ host: "localhost:43111" }));
+    signInMock.mockResolvedValue({
+      user: mockUser,
+      userErrors: [],
+      setCookies: ["islandia_session=abc123; Path=/; Domain=127.0.0.1; HttpOnly"],
+    });
+
+    const authorize = getAuthorize();
+    await authorize(validCredentials);
+
+    expect(setCookieMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "islandia_session",
+        domain: undefined,
+      }),
+    );
+  });
+
+  it("preserves compatible cookie domains when they match the request host", async () => {
+    headersMock.mockReturnValue(new Headers({ host: "app.localhost:43111" }));
+    signInMock.mockResolvedValue({
+      user: mockUser,
+      userErrors: [],
+      setCookies: ["islandia_session=abc123; Path=/; Domain=.localhost; HttpOnly"],
+    });
+
+    const authorize = getAuthorize();
+    await authorize(validCredentials);
+
+    expect(setCookieMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "islandia_session",
+        domain: ".localhost",
+      }),
+    );
+  });
+
   it("throws when the API does not return a user", async () => {
     signInMock.mockResolvedValue({ user: null, userErrors: [], setCookies: [] });
 
