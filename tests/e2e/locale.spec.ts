@@ -1,9 +1,13 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
-import { buildSignOutSuccess } from "@/tests/mocks/graphql";
+import { buildSignOutSuccess } from "@/tests/mocks/services/auth";
 
 import { completeSignIn } from "./support/auth";
-import { mockGraphQLOperation, resolveGraphQLEndpoint } from "./support/graphql";
+import {
+  AUTH_OPERATION_NAMES,
+  mockGraphQLOperation,
+  resolveGraphQLEndpoint,
+} from "./support/graphql";
 
 async function captureSignOutLocale(page: Page, graphqlUrl: string) {
   const userMenuTrigger = page
@@ -19,14 +23,14 @@ async function captureSignOutLocale(page: Page, graphqlUrl: string) {
 
     try {
       const body = JSON.parse(request.postData() ?? "{}");
-      return body.operationName === "SignOut";
+      return body.operationName === AUTH_OPERATION_NAMES.signOut;
     } catch (error) {
       console.warn("Failed to parse GraphQL request body", error);
       return false;
     }
   });
 
-  const teardown = await mockGraphQLOperation(page, "SignOut", {
+  const teardown = await mockGraphQLOperation(page, AUTH_OPERATION_NAMES.signOut, {
     body: buildSignOutSuccess(),
   });
 

@@ -134,3 +134,5 @@ export function waitForGraphQLRequest(
     }
   });
 }
+
+export { AUTH_OPERATION_NAMES, getAuthServiceDocument } from "@/tests/mocks/services/auth";

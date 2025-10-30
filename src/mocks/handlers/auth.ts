@@ -1,66 +1,84 @@
 import { graphql, HttpResponse } from "msw";
 
-import type { SignInPayload, SignUpPayload, UserErrorPayload } from "@/src/lib/auth/types";
-import { buildSignInErrors, buildSignInSuccess, buildSignOutSuccess, buildSignUpErrors, buildSignUpSuccess, mockAuthUser } from "@/tests/mocks/graphql";
-
-const SESSION_COOKIE_NAME = "islandia_session";
-const SESSION_COOKIE_VALUE = "mock-session";
+import { signInService, signOutService, signUpService } from "@/src/services/graphql/auth";
+import {
+  SESSION_COOKIE_NAME,
+  SESSION_COOKIE_VALUE,
+  dispatchAuthOperation,
+  mockAuthUser,
+} from "@/tests/mocks/services/auth";
 
 export const mockUser = mockAuthUser;
 
+let sessionUser = mockAuthUser;
+
+function resolveSessionCookie(request: Request): boolean {
+  const cookieHeader = request.headers.get("cookie") ?? "";
+  return cookieHeader.includes(`${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}`);
+}
+
+function createResponseInit(init: ResponseInit | undefined): ResponseInit {
+  if (!init) {
+    return { status: 200 };
+  }
+
+  const { status = 200, headers, statusText } = init;
+  const resolvedHeaders = headers ? new Headers(headers) : undefined;
+
+  return {
+    status,
+    statusText,
+    headers: resolvedHeaders,
+  };
+}
+
 export const authHandlers = [
-  graphql.mutation("SignIn", async ({ variables }) => {
-    const input = (variables as { input?: { credentials?: SignInPayload } })?.input ?? {};
-    const password = input.credentials?.password ?? "";
-
-    if (password !== "password123") {
-      const errors: UserErrorPayload[] = [
-        { message: "Invalid credentials", path: ["credentials", "password"] },
-      ];
-      return HttpResponse.json(buildSignInErrors(errors), { status: 200 });
-    }
-
-    return HttpResponse.json(buildSignInSuccess(), {
-      status: 200,
-      headers: {
-        "Set-Cookie": `${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}; Path=/; HttpOnly`,
+  graphql.mutation(signInService.operationName, async ({ variables, request }) => {
+    const response = dispatchAuthOperation(signInService.operationName, variables, {
+      hasSessionCookie: resolveSessionCookie(request),
+      sessionUser,
+      setSessionUser(nextUser) {
+        sessionUser = nextUser;
+      },
+      clearSessionUser() {
+        sessionUser = mockAuthUser;
       },
     });
+
+    const init = createResponseInit(response?.init);
+
+    return HttpResponse.json(response?.body ?? {}, init);
   }),
-  graphql.mutation("SignUp", async ({ variables }) => {
-    const input = (variables as {
-      input?: { attributes?: Partial<SignUpPayload> };
-    })?.input ?? { attributes: {} };
-    const attributes = input.attributes ?? {};
-    const email = attributes.email ?? "";
-    const name = attributes.name ?? mockAuthUser.name;
-
-    if (email === "taken@example.com") {
-      const errors: UserErrorPayload[] = [
-        { message: "Email is already registered", path: ["attributes", "email"] },
-      ];
-      return HttpResponse.json(buildSignUpErrors(errors), { status: 200 });
-    }
-
-    return HttpResponse.json(
-      buildSignUpSuccess({
-        email,
-        name,
-      }),
-      {
-        status: 200,
-        headers: {
-          "Set-Cookie": `${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}; Path=/; HttpOnly`,
-        },
+  graphql.mutation(signUpService.operationName, async ({ variables, request }) => {
+    const response = dispatchAuthOperation(signUpService.operationName, variables, {
+      hasSessionCookie: resolveSessionCookie(request),
+      sessionUser,
+      setSessionUser(nextUser) {
+        sessionUser = nextUser;
       },
-    );
-  }),
-  graphql.mutation("SignOut", async () => {
-    return HttpResponse.json(buildSignOutSuccess(), {
-      status: 200,
-      headers: {
-        "Set-Cookie": `${SESSION_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly`,
+      clearSessionUser() {
+        sessionUser = mockAuthUser;
       },
     });
+
+    const init = createResponseInit(response?.init);
+
+    return HttpResponse.json(response?.body ?? {}, init);
+  }),
+  graphql.mutation(signOutService.operationName, async ({ variables, request }) => {
+    const response = dispatchAuthOperation(signOutService.operationName, variables, {
+      hasSessionCookie: resolveSessionCookie(request),
+      sessionUser,
+      setSessionUser(nextUser) {
+        sessionUser = nextUser;
+      },
+      clearSessionUser() {
+        sessionUser = mockAuthUser;
+      },
+    });
+
+    const init = createResponseInit(response?.init);
+
+    return HttpResponse.json(response?.body ?? {}, init);
   }),
 ];

@@ -6,10 +6,11 @@ import {
   buildSignOutSuccess,
   buildSignUpErrors,
   buildSignUpSuccess,
-} from "@/tests/mocks/graphql";
+} from "@/tests/mocks/services/auth";
 
 import { completeSignIn, registerAccountForE2E } from "./support/auth";
 import {
+  AUTH_OPERATION_NAMES,
   isUsingRealGraphQL,
   mockGraphQLOperation,
   resolveGraphQLEndpoint,
@@ -50,7 +51,7 @@ test.describe("authentication flows", () => {
   test("signs out and returns to the sign-in page", async ({ page }) => {
     await completeSignIn(page);
 
-    const teardown = await mockGraphQLOperation(page, "SignOut", {
+    const teardown = await mockGraphQLOperation(page, AUTH_OPERATION_NAMES.signOut, {
       body: buildSignOutSuccess(),
     });
 
@@ -75,8 +76,8 @@ test.describe("authentication flows", () => {
 
   test("registers a new account and redirects back to sign in", async ({ page }) => {
     const { email, name } = await fillSignUpForm(page);
-    const signUpRequestPromise = waitForGraphQLRequest(page, "SignUp");
-    const teardown = await mockGraphQLOperation(page, "SignUp", {
+    const signUpRequestPromise = waitForGraphQLRequest(page, AUTH_OPERATION_NAMES.signUp);
+    const teardown = await mockGraphQLOperation(page, AUTH_OPERATION_NAMES.signUp, {
       body: buildSignUpSuccess({ email, name }),
     });
 
@@ -106,8 +107,8 @@ test.describe("authentication flows", () => {
       });
     }
 
-    const signUpRequestPromise = waitForGraphQLRequest(page, "SignUp");
-    const teardown = await mockGraphQLOperation(page, "SignUp", {
+    const signUpRequestPromise = waitForGraphQLRequest(page, AUTH_OPERATION_NAMES.signUp);
+    const teardown = await mockGraphQLOperation(page, AUTH_OPERATION_NAMES.signUp, {
       body: buildSignUpErrors([
         { message: "Email is already registered", path: ["attributes", "email"] },
       ]),

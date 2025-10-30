@@ -1,20 +1,12 @@
 import { NextRequest } from "next/server";
 
 import {
-  buildAuthUser,
+  SESSION_COOKIE_NAME,
+  SESSION_COOKIE_VALUE,
   buildErrorResponse,
-  buildSignInErrors,
-  buildSignInSuccess,
-  buildSignOutSuccess,
-  buildSignUpErrors,
-  buildSignUpSuccess,
-  buildUnauthorizedError,
-  buildViewerSuccess,
+  dispatchAuthOperation,
   mockAuthUser,
-} from "@/tests/mocks/graphql";
-
-const SESSION_COOKIE_NAME = "islandia_session";
-const SESSION_COOKIE_VALUE = "mock-session";
+} from "@/tests/mocks/services/auth";
 
 let sessionUser = mockAuthUser;
 
@@ -34,78 +26,24 @@ export async function POST(request: NextRequest) {
   const cookieHeader = request.headers.get("cookie") ?? "";
   const hasSessionCookie = cookieHeader.includes(`${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}`);
 
-  switch (operation) {
-    case "SignIn": {
-      const variables = (body.variables ?? {}) as {
-        input?: { credentials?: { email?: string; password?: string } };
-      };
-      const email = variables.input?.credentials?.email ?? mockAuthUser.email;
-      const password = variables.input?.credentials?.password ?? "";
-
-      if (password !== "password123") {
-        return jsonResponse(
-          buildSignInErrors([
-            { message: "Invalid credentials", path: ["credentials", "password"] },
-          ]),
-        );
-      }
-
-      sessionUser = buildAuthUser({ email });
-
-      return jsonResponse(buildSignInSuccess({ email }), {
-        headers: {
-          "Set-Cookie": `${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}; Path=/; HttpOnly`,
-        },
-      });
-    }
-    case "SignUp": {
-      const variables = (body.variables ?? {}) as {
-        input?: { attributes?: { email?: string; name?: string } };
-      };
-      const email = variables.input?.attributes?.email ?? "";
-      const name = variables.input?.attributes?.name ?? mockAuthUser.name;
-
-      if (email === "taken@example.com") {
-        return jsonResponse(
-          buildSignUpErrors([{ message: "Email is already registered", path: ["attributes", "email"] }]),
-        );
-      }
-
-      sessionUser = buildAuthUser({ id: "user_124", email, name });
-
-      return jsonResponse(
-        buildSignUpSuccess({
-          email,
-          name,
-        }),
-        {
-          headers: {
-            "Set-Cookie": `${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}; Path=/; HttpOnly`,
-          },
-        },
-      );
-    }
-    case "SignOut": {
+  const response = dispatchAuthOperation(operation, body.variables, {
+    hasSessionCookie,
+    sessionUser,
+    setSessionUser(nextUser) {
+      sessionUser = nextUser;
+    },
+    clearSessionUser() {
       sessionUser = mockAuthUser;
-      return jsonResponse(buildSignOutSuccess(), {
-        headers: {
-          "Set-Cookie": `${SESSION_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly`,
-        },
-      });
-    }
-    case "Viewer": {
-      if (!hasSessionCookie) {
-        return jsonResponse(buildUnauthorizedError());
-      }
+    },
+  });
 
-      return jsonResponse(buildViewerSuccess(sessionUser));
-    }
-    default: {
-      const message = operation
-        ? `Unhandled GraphQL operation: ${operation}`
-        : "Missing GraphQL operation";
+  if (!response) {
+    const message = operation
+      ? `Unhandled GraphQL operation: ${operation}`
+      : "Missing GraphQL operation";
 
-      return jsonResponse(buildErrorResponse(message), { status: 400 });
-    }
+    return jsonResponse(buildErrorResponse(message), { status: 400 });
   }
+
+  return jsonResponse(response.body, response.init);
 }

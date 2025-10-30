@@ -8,6 +8,10 @@ import {
   resolveGraphQLEndpoint,
   resolveGraphQLUpstream,
 } from "./graphql";
+import {
+  AUTH_OPERATION_NAMES,
+  getAuthServiceDocument,
+} from "@/tests/mocks/services/auth";
 
 const MOCK_EMAIL = "admin@example.com";
 const MOCK_PASSWORD = "password123";
@@ -17,16 +21,6 @@ export type SignInCredentials = {
   password: string;
 };
 
-const SIGN_UP_MUTATION = /* GraphQL */ `
-  mutation SignUp($input: SignUpInput!) {
-    signUp(input: $input) {
-      userErrors {
-        message
-      }
-    }
-  }
-`;
-
 let generatedCredentialsPromise: Promise<SignInCredentials> | null = null;
 
 async function registerAccount(credentials: SignInCredentials): Promise<void> {
@@ -34,8 +28,8 @@ async function registerAccount(credentials: SignInCredentials): Promise<void> {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      operationName: "SignUp",
-      query: SIGN_UP_MUTATION,
+      operationName: AUTH_OPERATION_NAMES.signUp,
+      query: getAuthServiceDocument(AUTH_OPERATION_NAMES.signUp),
       variables: {
         input: {
           attributes: {

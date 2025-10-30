@@ -1,4 +1,26 @@
-import type { AuthUser, UserErrorPayload } from "@/src/lib/auth/types";
+import type {
+  SignInServiceData,
+  SignInServiceUser,
+  SignInServiceUserError,
+  SignOutServiceData,
+  SignOutServiceUser,
+  SignOutServiceUserError,
+  SignUpServiceData,
+  SignUpServiceUser,
+  SignUpServiceUserError,
+  ViewerServiceData,
+  ViewerServiceUser,
+} from "@/src/services/graphql/auth";
+
+export type AuthUser = SignInServiceUser;
+export type UserErrorPayload =
+  | SignInServiceUserError
+  | SignUpServiceUserError
+  | SignOutServiceUserError;
+
+export interface GraphQLSuccessEnvelope<TData> {
+  data: TData;
+}
 
 export interface GraphQLErrorEnvelope {
   errors: { message: string }[];
@@ -22,7 +44,9 @@ export function buildAuthError(message: string) {
   };
 }
 
-export function buildViewerSuccess(overrides: Partial<AuthUser> = {}) {
+export function buildViewerSuccess(
+  overrides: Partial<ViewerServiceUser> = {},
+): GraphQLSuccessEnvelope<ViewerServiceData> {
   return {
     data: {
       viewer: buildAuthUser(overrides),
@@ -30,7 +54,9 @@ export function buildViewerSuccess(overrides: Partial<AuthUser> = {}) {
   };
 }
 
-export function buildSignInSuccess(overrides: Partial<AuthUser> = {}) {
+export function buildSignInSuccess(
+  overrides: Partial<SignInServiceUser> = {},
+): GraphQLSuccessEnvelope<SignInServiceData> {
   return {
     data: {
       signIn: {
@@ -41,7 +67,9 @@ export function buildSignInSuccess(overrides: Partial<AuthUser> = {}) {
   };
 }
 
-export function buildSignInErrors(userErrors: UserErrorPayload[]) {
+export function buildSignInErrors(
+  userErrors: SignInServiceUserError[],
+): GraphQLSuccessEnvelope<SignInServiceData> {
   return {
     data: {
       signIn: {
@@ -52,7 +80,9 @@ export function buildSignInErrors(userErrors: UserErrorPayload[]) {
   };
 }
 
-export function buildSignUpSuccess(overrides: Partial<AuthUser> = {}) {
+export function buildSignUpSuccess(
+  overrides: Partial<SignUpServiceUser> = {},
+): GraphQLSuccessEnvelope<SignUpServiceData> {
   return {
     data: {
       signUp: {
@@ -63,7 +93,9 @@ export function buildSignUpSuccess(overrides: Partial<AuthUser> = {}) {
   };
 }
 
-export function buildSignUpErrors(userErrors: UserErrorPayload[]) {
+export function buildSignUpErrors(
+  userErrors: SignUpServiceUserError[],
+): GraphQLSuccessEnvelope<SignUpServiceData> {
   return {
     data: {
       signUp: {
@@ -74,7 +106,7 @@ export function buildSignUpErrors(userErrors: UserErrorPayload[]) {
   };
 }
 
-export function buildSignOutSuccess() {
+export function buildSignOutSuccess(): GraphQLSuccessEnvelope<SignOutServiceData> {
   return {
     data: {
       signOut: {
@@ -85,7 +117,9 @@ export function buildSignOutSuccess() {
   };
 }
 
-export function buildSignOutErrors(userErrors: UserErrorPayload[]) {
+export function buildSignOutErrors(
+  userErrors: SignOutServiceUserError[],
+): GraphQLSuccessEnvelope<SignOutServiceData> {
   return {
     data: {
       signOut: {
