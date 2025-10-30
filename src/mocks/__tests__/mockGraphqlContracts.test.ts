@@ -5,6 +5,9 @@ import type { RequestHandler } from "msw";
 
 import { handlers } from "@/src/mocks/handlers";
 import {
+  AUTH_OPERATION_NAMES,
+  SESSION_COOKIE_NAME,
+  SESSION_COOKIE_VALUE,
   buildSignInErrors,
   buildSignInSuccess,
   buildSignOutSuccess,
@@ -12,57 +15,23 @@ import {
   buildSignUpSuccess,
   buildUnauthorizedError,
   buildViewerSuccess,
-} from "@/tests/mocks/graphql";
+  listAuthServiceEntries,
+} from "@/tests/mocks/services/auth";
 
 const GRAPHQL_ENDPOINT = "http://mock.api/graphql";
-const GRAPHQL_DOCUMENTS: Record<string, string> = {
-  SignIn: `
-    mutation SignIn($input: SignInInput!) {
-      signIn(input: $input) {
-        user {
-          id
-          email
-          name
-        }
-        userErrors {
-          message
-          path
-        }
-      }
-    }
-  `,
-  SignUp: `
-    mutation SignUp($input: SignUpInput!) {
-      signUp(input: $input) {
-        user {
-          id
-          email
-          name
-        }
-        userErrors {
-          message
-          path
-        }
-      }
-    }
-  `,
-  SignOut: `
-    mutation SignOut($input: SignOutInput!) {
-      signOut(input: $input) {
-        user {
-          id
-          email
-          name
-        }
-        userErrors {
-          message
-          path
-        }
-      }
-    }
-  `,
-  Viewer: "query Viewer { viewer { id email name } }",
-};
+const AUTH_DOCUMENTS = new Map(
+  listAuthServiceEntries().map((entry) => [entry.service.operationName, entry.document]),
+);
+
+function getAuthDocument(operationName: string): string {
+  const document = AUTH_DOCUMENTS.get(operationName);
+
+  if (!document) {
+    throw new Error(`Missing GraphQL document for operation "${operationName}".`);
+  }
+
+  return document;
+}
 
 if (typeof (Response as typeof globalThis.Response & { json?: typeof Response.json }).json !== "function") {
   (Response as typeof globalThis.Response & { json?: typeof Response.json }).json = (
@@ -106,11 +75,7 @@ async function executeGraphQLHandler(
   headers: HeadersInit = {},
 ) {
   const handler = findGraphQLHandler(operationName);
-  const query = GRAPHQL_DOCUMENTS[operationName];
-
-  if (!query) {
-    throw new Error(`Missing GraphQL document for operation "${operationName}".`);
-  }
+  const query = getAuthDocument(operationName);
 
   const request = new Request(GRAPHQL_ENDPOINT, {
     method: "POST",
@@ -149,7 +114,7 @@ function createNextRequest(body: unknown, headers: HeadersInit = {}) {
 describe("mock backend contract parity", () => {
   describe("MSW handlers", () => {
     it("returns the sign-in success payload", async () => {
-      const result = await executeGraphQLHandler("SignIn", {
+      const result = await executeGraphQLHandler(AUTH_OPERATION_NAMES.signIn, {
         variables: {
           input: {
             credentials: {
@@ -160,11 +125,15 @@ describe("mock backend contract parity", () => {
         },
       });
 
-      expect(result).toEqual(buildSignInSuccess());
+      expect(result).toEqual(
+        buildSignInSuccess({
+          email: "user@example.com",
+        }),
+      );
     });
 
     it("returns the sign-in error payload", async () => {
-      const result = await executeGraphQLHandler("SignIn", {
+      const result = await executeGraphQLHandler(AUTH_OPERATION_NAMES.signIn, {
         variables: {
           input: {
             credentials: {
@@ -183,7 +152,7 @@ describe("mock backend contract parity", () => {
     });
 
     it("returns the sign-up success payload", async () => {
-      const result = await executeGraphQLHandler("SignUp", {
+      const result = await executeGraphQLHandler(AUTH_OPERATION_NAMES.signUp, {
         variables: {
           input: {
             attributes: {
@@ -205,7 +174,7 @@ describe("mock backend contract parity", () => {
     });
 
     it("returns the sign-up error payload", async () => {
-      const result = await executeGraphQLHandler("SignUp", {
+      const result = await executeGraphQLHandler(AUTH_OPERATION_NAMES.signUp, {
         variables: {
           input: {
             attributes: {
@@ -226,7 +195,7 @@ describe("mock backend contract parity", () => {
     });
 
     it("returns the sign-out success payload", async () => {
-      const result = await executeGraphQLHandler("SignOut", {
+      const result = await executeGraphQLHandler(AUTH_OPERATION_NAMES.signOut, {
         variables: {
           input: {},
         },
@@ -237,10 +206,10 @@ describe("mock backend contract parity", () => {
 
     it("returns the viewer success payload", async () => {
       const result = await executeGraphQLHandler(
-        "Viewer",
+        AUTH_OPERATION_NAMES.viewer,
         {},
         {
-          cookie: "islandia_session=mock-session",
+          cookie: `${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}`,
         },
       );
 
@@ -248,7 +217,7 @@ describe("mock backend contract parity", () => {
     });
 
     it("returns the viewer unauthorized envelope", async () => {
-      const result = await executeGraphQLHandler("Viewer");
+      const result = await executeGraphQLHandler(AUTH_OPERATION_NAMES.viewer);
 
       expect(result).toEqual(buildUnauthorizedError());
     });
@@ -257,8 +226,8 @@ describe("mock backend contract parity", () => {
   describe("Next.js route", () => {
     it("returns the sign-in success payload", async () => {
       const payload = {
-        operationName: "SignIn",
-        query: GRAPHQL_DOCUMENTS.SignIn,
+        operationName: AUTH_OPERATION_NAMES.signIn,
+        query: getAuthDocument(AUTH_OPERATION_NAMES.signIn),
         variables: {
           input: {
             credentials: {
@@ -277,13 +246,15 @@ describe("mock backend contract parity", () => {
           email: "user@example.com",
         }),
       );
-      expect(response.headers.get("set-cookie")).toContain("islandia_session=mock-session");
+      expect(response.headers.get("set-cookie")).toContain(
+        `${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}`,
+      );
     });
 
     it("returns the sign-in error payload", async () => {
       const payload = {
-        operationName: "SignIn",
-        query: GRAPHQL_DOCUMENTS.SignIn,
+        operationName: AUTH_OPERATION_NAMES.signIn,
+        query: getAuthDocument(AUTH_OPERATION_NAMES.signIn),
         variables: {
           input: {
             credentials: {
@@ -306,8 +277,8 @@ describe("mock backend contract parity", () => {
 
     it("returns the sign-up success payload", async () => {
       const payload = {
-        operationName: "SignUp",
-        query: GRAPHQL_DOCUMENTS.SignUp,
+        operationName: AUTH_OPERATION_NAMES.signUp,
+        query: getAuthDocument(AUTH_OPERATION_NAMES.signUp),
         variables: {
           input: {
             attributes: {
@@ -329,13 +300,15 @@ describe("mock backend contract parity", () => {
           name: "New User",
         }),
       );
-      expect(response.headers.get("set-cookie")).toContain("islandia_session=mock-session");
+      expect(response.headers.get("set-cookie")).toContain(
+        `${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}`,
+      );
     });
 
     it("returns the sign-up error payload", async () => {
       const payload = {
-        operationName: "SignUp",
-        query: GRAPHQL_DOCUMENTS.SignUp,
+        operationName: AUTH_OPERATION_NAMES.signUp,
+        query: getAuthDocument(AUTH_OPERATION_NAMES.signUp),
         variables: {
           input: {
             attributes: {
@@ -360,11 +333,11 @@ describe("mock backend contract parity", () => {
 
     it("returns the sign-out success payload", async () => {
       const payload = {
-        operationName: "SignOut",
-        query: GRAPHQL_DOCUMENTS.SignOut,
+        operationName: AUTH_OPERATION_NAMES.signOut,
+        query: getAuthDocument(AUTH_OPERATION_NAMES.signOut),
         variables: {
           input: {
-            
+
           },
         },
       };
@@ -378,13 +351,13 @@ describe("mock backend contract parity", () => {
 
     it("returns the viewer success payload", async () => {
       const payload = {
-        operationName: "Viewer",
-        query: GRAPHQL_DOCUMENTS.Viewer,
+        operationName: AUTH_OPERATION_NAMES.viewer,
+        query: getAuthDocument(AUTH_OPERATION_NAMES.viewer),
       };
 
       const response = await graphqlRoute(
         createNextRequest(payload, {
-          cookie: "islandia_session=mock-session",
+          cookie: `${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}`,
         }),
       );
       const result = await response.json();
@@ -394,8 +367,8 @@ describe("mock backend contract parity", () => {
 
     it("returns the viewer unauthorized envelope", async () => {
       const payload = {
-        operationName: "Viewer",
-        query: GRAPHQL_DOCUMENTS.Viewer,
+        operationName: AUTH_OPERATION_NAMES.viewer,
+        query: getAuthDocument(AUTH_OPERATION_NAMES.viewer),
       };
 
       const response = await graphqlRoute(createNextRequest(payload));

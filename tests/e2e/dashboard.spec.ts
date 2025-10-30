@@ -1,7 +1,12 @@
 import { test, expect } from "@playwright/test";
 
 import { completeSignIn } from "./support/auth";
-import { mockGraphQLOperation, resolveGraphQLEndpoint } from "./support/graphql";
+import {
+  AUTH_OPERATION_NAMES,
+  getAuthServiceDocument,
+  mockGraphQLOperation,
+  resolveGraphQLEndpoint,
+} from "./support/graphql";
 
 test.describe("dashboard access control", () => {
   test("keeps users on the sign-in flow after a failed attempt", async ({ page }) => {
@@ -33,7 +38,7 @@ test.describe("dashboard access control", () => {
       }
     });
 
-    const signInMock = await mockGraphQLOperation(page, "SignIn", {
+    const signInMock = await mockGraphQLOperation(page, AUTH_OPERATION_NAMES.signIn, {
       body: {
         data: {
           signIn: {
@@ -65,7 +70,7 @@ test.describe("dashboard access control", () => {
 
       try {
         const parsed = JSON.parse(body) as { operationName?: string | null };
-        return parsed.operationName === "SignIn";
+        return parsed.operationName === AUTH_OPERATION_NAMES.signIn;
       } catch {
         return false;
       }
@@ -76,40 +81,38 @@ test.describe("dashboard access control", () => {
 
     const [signInResponse] = await Promise.all([
       signInResponsePromise,
-      page.evaluate(async ({ endpoint }) => {
-        const response = await fetch(endpoint, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            operationName: "SignIn",
-            query: /* GraphQL */ `
-              mutation SignIn($input: SignInInput!) {
-                signIn(input: $input) {
-                  userErrors {
-                    message
-                  }
-                }
-              }
-            `,
-            variables: {
-              input: {
-                credentials: {
-                  email: "invalid@example.com",
-                  password: "totally-wrong-password",
+      page.evaluate(
+        async ({ endpoint, operationName, document }) => {
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              operationName,
+              query: document,
+              variables: {
+                input: {
+                  credentials: {
+                    email: "invalid@example.com",
+                    password: "totally-wrong-password",
+                  },
                 },
               },
-            },
-          }),
-        });
+            }),
+          });
 
-        if (!response.ok) {
-          throw new Error(`SignIn mutation failed: ${response.status}`);
-        }
+          if (!response.ok) {
+            throw new Error(`SignIn mutation failed: ${response.status}`);
+          }
 
-        return response.json();
-      },
-      { endpoint: graphqlUrl }),
+          return response.json();
+        },
+        {
+          endpoint: graphqlUrl,
+          operationName: AUTH_OPERATION_NAMES.signIn,
+          document: getAuthServiceDocument(AUTH_OPERATION_NAMES.signIn),
+        },
+      ),
     ]);
 
     const payload = (await signInResponse.json()) as {
@@ -118,7 +121,7 @@ test.describe("dashboard access control", () => {
 
     const userErrors = payload.data?.signIn?.userErrors ?? [];
     expect(userErrors.length).toBeGreaterThan(0);
-    expect(observedOperations).toContain("SignIn");
+    expect(observedOperations).toContain(AUTH_OPERATION_NAMES.signIn);
 
     await expect(page).toHaveURL(/\/signin$/, { timeout: 10000 });
 
@@ -132,20 +135,24 @@ test.describe("dashboard access control", () => {
     await expect(page).toHaveURL(/\/dashboard$/, { timeout: 10000 });
 
     const payload = (await page.evaluate(
-      async ({ endpoint }) => {
+      async ({ endpoint, operationName, document }) => {
         const response = await fetch(endpoint, {
           method: "POST",
           headers: { "content-type": "application/json" },
           credentials: "include",
           body: JSON.stringify({
-            operationName: "Viewer",
-            query: "query Viewer { viewer { id email name } }",
+            operationName,
+            query: document,
           }),
         });
 
         return response.json();
       },
-      { endpoint: graphqlUrl },
+      {
+        endpoint: graphqlUrl,
+        operationName: AUTH_OPERATION_NAMES.viewer,
+        document: getAuthServiceDocument(AUTH_OPERATION_NAMES.viewer),
+      },
     )) as {
       data?: { viewer?: { email?: string | null; name?: string | null } | null } | null;
     };
