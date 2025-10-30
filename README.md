@@ -18,7 +18,8 @@ This package contains the Next.js interface for IslandiaAI. It consumes the Rail
    - `GRAPHQL_SERVER_URL` – the server-to-server GraphQL endpoint forwarded by the proxy (e.g., `http://localhost:3000/graphql`).
    - `GRAPHQL_SCHEMA_PATH=graphql/schema.graphql` – location of the shared SDL snapshot for code generation.
    - `NEXTAUTH_SECRET` – secret used to sign NextAuth JWT/session cookies (generate a random string in production). Must remain consistent across sessions to avoid decryption errors.
-   - `NEXTAUTH_URL` – (optional in development) the canonical URL of your site. Defaults to `http://127.0.0.1:43111` in development. Required in production.
+   - `NEXTAUTH_URL` – (optional in development) the canonical URL of your site. Defaults to `http://localhost:43111` in development (or `http://<NEXT_PUBLIC_APP_HOST>:43111` when overridden). Required in production.
+   - `NEXT_PUBLIC_APP_HOST` – (optional) host name used to derive the default `NEXTAUTH_URL`. Set this when you need a specific development domain (for example, `app.localhost`).
 4. Generate typed operations: `yarn codegen`.
 5. Launch the development server: `yarn dev`.
 
@@ -88,8 +89,8 @@ If you encounter "decryption operation failed" errors during signin/signup:
 
 ### Port 3000 Redirect Issues
 If redirects go to `localhost:3000` instead of the configured port:
-- Set `NEXTAUTH_URL` explicitly: `NEXTAUTH_URL=http://127.0.0.1:43111` (or your configured port).
-- The app defaults to port 43111 in development; ensure `NEXTAUTH_URL` matches your actual port.
+- Set `NEXTAUTH_URL` explicitly: `NEXTAUTH_URL=http://localhost:43111` (or your configured port/host).
+- The app defaults to port 43111 in development; ensure `NEXTAUTH_URL` and `NEXT_PUBLIC_APP_HOST` (when set) match your actual host and port.
 
 ### E2E Test Timeouts
 If E2E tests timeout when redirecting to dashboard:

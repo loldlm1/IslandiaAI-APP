@@ -5,7 +5,19 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { AuthRequestError, signIn as signInMutation, signOut as signOutMutation } from "./api";
 import { parseLocaleFromCookieHeader } from "@/src/lib/locale/utils";
 
-const developmentUrl = `http://127.0.0.1:${process.env.PORT ?? "43111"}`;
+const defaultPort = process.env.PORT ?? "43111";
+const configuredHost = process.env.NEXT_PUBLIC_APP_HOST ?? "localhost";
+const developmentUrl = (() => {
+  if (/^https?:\/\//i.test(configuredHost)) {
+    return configuredHost;
+  }
+
+  if (configuredHost.includes(":")) {
+    return `http://${configuredHost}`;
+  }
+
+  return `http://${configuredHost}:${defaultPort}`;
+})();
 
 if (!process.env.NEXTAUTH_URL && process.env.NODE_ENV !== "production") {
   process.env.NEXTAUTH_URL = developmentUrl;
@@ -98,6 +110,14 @@ async function applyGraphqlCookies(setCookies: string[]): Promise<void> {
   }
 
   const cookieStore = await cookies();
+  const requestHeaders = headers();
+  const forwardedHost =
+    requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? undefined;
+  const normalizedHost = forwardedHost
+    ?.split(",")[0]
+    ?.trim()
+    .replace(/:\d+$/, "")
+    .toLowerCase();
 
   for (const setCookie of setCookies) {
     const parsed = parseSetCookieHeader(setCookie);
@@ -105,11 +125,22 @@ async function applyGraphqlCookies(setCookies: string[]): Promise<void> {
       continue;
     }
 
+    let cookieDomain = parsed.domain;
+    if (cookieDomain && normalizedHost) {
+      const normalizedDomain = cookieDomain.replace(/^\./, "").toLowerCase();
+      const hostMatchesDomain =
+        normalizedHost === normalizedDomain || normalizedHost.endsWith(`.${normalizedDomain}`);
+
+      if (!hostMatchesDomain) {
+        cookieDomain = undefined;
+      }
+    }
+
     cookieStore.set({
       name: parsed.name,
       value: parsed.value,
       path: parsed.path,
-      domain: parsed.domain,
+      domain: cookieDomain,
       secure: Boolean(parsed.secure),
       httpOnly: Boolean(parsed.httpOnly),
       sameSite: parsed.sameSite,
