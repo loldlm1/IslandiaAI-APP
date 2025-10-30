@@ -95,7 +95,9 @@ describe("nextAuthOptions", () => {
   it("throws when the API returns user errors", async () => {
     signInMock.mockResolvedValue({
       user: null,
-      userErrors: [{ message: "Invalid credentials", path: ["credentials", "password"] }],
+      userErrors: [
+        { message: "Invalid credentials", path: ["credentials", "password"], kind: "VALIDATION" },
+      ],
       setCookies: [],
     });
 
@@ -295,7 +297,7 @@ describe("nextAuthOptions", () => {
     headersMock.mockReturnValueOnce(new Headers({ cookie: "islandia_session=xyz" }));
     signOutMock.mockResolvedValue({
       user: null,
-      userErrors: [{ message: "Session could not be closed", path: [] }],
+      userErrors: [{ message: "Session could not be closed", path: [], kind: "VALIDATION" }],
       setCookies: [],
     });
 
@@ -304,7 +306,7 @@ describe("nextAuthOptions", () => {
     await signOutEvent?.();
 
     expect(warnSpy).toHaveBeenCalledWith("GraphQL sign-out returned user errors", [
-      { message: "Session could not be closed", path: [] },
+      { message: "Session could not be closed", path: [], kind: "VALIDATION" },
     ]);
     expect(setCookieMock).toHaveBeenCalledWith(
       expect.objectContaining({

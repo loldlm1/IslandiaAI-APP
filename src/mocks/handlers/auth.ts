@@ -1,6 +1,6 @@
 import { graphql, HttpResponse } from "msw";
 
-import type { SignInPayload, SignUpPayload, UserError } from "@/src/lib/auth/types";
+import type { SignInPayload, SignUpPayload, UserErrorPayload } from "@/src/lib/auth/types";
 import { buildSignInErrors, buildSignInSuccess, buildSignOutSuccess, buildSignUpErrors, buildSignUpSuccess, mockAuthUser } from "@/tests/mocks/graphql";
 
 const SESSION_COOKIE_NAME = "islandia_session";
@@ -14,7 +14,7 @@ export const authHandlers = [
     const password = input.credentials?.password ?? "";
 
     if (password !== "password123") {
-      const errors: UserError[] = [
+      const errors: UserErrorPayload[] = [
         { message: "Invalid credentials", path: ["credentials", "password"] },
       ];
       return HttpResponse.json(buildSignInErrors(errors), { status: 200 });
@@ -36,7 +36,7 @@ export const authHandlers = [
     const name = attributes.name ?? mockAuthUser.name;
 
     if (email === "taken@example.com") {
-      const errors: UserError[] = [
+      const errors: UserErrorPayload[] = [
         { message: "Email is already registered", path: ["attributes", "email"] },
       ];
       return HttpResponse.json(buildSignUpErrors(errors), { status: 200 });

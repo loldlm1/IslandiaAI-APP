@@ -1,4 +1,4 @@
-import type { AuthUser, UserError } from "@/src/lib/auth/types";
+import type { AuthUser, UserErrorPayload } from "@/src/lib/auth/types";
 
 export interface GraphQLErrorEnvelope {
   errors: { message: string }[];
@@ -41,7 +41,7 @@ export function buildSignInSuccess(overrides: Partial<AuthUser> = {}) {
   };
 }
 
-export function buildSignInErrors(userErrors: UserError[]) {
+export function buildSignInErrors(userErrors: UserErrorPayload[]) {
   return {
     data: {
       signIn: {
@@ -63,7 +63,7 @@ export function buildSignUpSuccess(overrides: Partial<AuthUser> = {}) {
   };
 }
 
-export function buildSignUpErrors(userErrors: UserError[]) {
+export function buildSignUpErrors(userErrors: UserErrorPayload[]) {
   return {
     data: {
       signUp: {
@@ -85,7 +85,7 @@ export function buildSignOutSuccess() {
   };
 }
 
-export function buildSignOutErrors(userErrors: UserError[]) {
+export function buildSignOutErrors(userErrors: UserErrorPayload[]) {
   return {
     data: {
       signOut: {

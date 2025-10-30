@@ -1,12 +1,6 @@
-import {
-  AuthRequestError,
-  fetchViewer,
-  resolveServerGraphQLEndpoint,
-  signIn,
-  signOut,
-  signUp,
-} from "./api";
-import type { AuthUser, SignInPayload, SignUpPayload, UserError } from "./types";
+import { AuthRequestError, fetchViewer, signIn, signOut, signUp } from "./api";
+import type { AuthUser, SignInPayload, SignUpPayload, UserErrorPayload } from "./types";
+import { resolveServerGraphQLEndpoint } from "@/src/services/graphql/core";
 import { DEFAULT_LOCALE } from "@/src/lib/locale/constants";
 
 describe("auth API", () => {
@@ -191,8 +185,8 @@ describe("auth API", () => {
   });
 
   it("returns sign-in user errors without throwing", async () => {
-    const userErrors: UserError[] = [
-      { message: "Invalid credentials", path: ["credentials", "password"] },
+    const userErrors: UserErrorPayload[] = [
+      { message: "Invalid email or password.", path: ["credentials", "password"] },
     ];
 
     fetchMock.mockResolvedValue(
@@ -208,7 +202,17 @@ describe("auth API", () => {
 
     const result = await signIn({ email: "person@example.com", password: "wrong" });
 
-    expect(result).toEqual({ user: null, userErrors, setCookies: [] });
+    expect(result).toEqual({
+      user: null,
+      userErrors: [
+        {
+          message: "Invalid email or password.",
+          path: ["credentials", "password"],
+          kind: "INVALID_CREDENTIALS",
+        },
+      ],
+      setCookies: [],
+    });
   });
 
   it("throws when the sign-in payload is missing", async () => {
@@ -260,7 +264,7 @@ describe("auth API", () => {
   });
 
   it("exposes sign-up user errors", async () => {
-    const userErrors: UserError[] = [
+    const userErrors: UserErrorPayload[] = [
       { message: "Email has already been taken", path: ["attributes", "email"] },
     ];
 
@@ -282,7 +286,17 @@ describe("auth API", () => {
       passwordConfirmation: "secret",
     });
 
-    expect(result).toEqual({ user: null, userErrors, setCookies: [] });
+    expect(result).toEqual({
+      user: null,
+      userErrors: [
+        {
+          message: "Email has already been taken",
+          path: ["attributes", "email"],
+          kind: "VALIDATION",
+        },
+      ],
+      setCookies: [],
+    });
   });
 
   it("signs out using an empty input payload", async () => {
@@ -382,7 +396,7 @@ describe("auth API", () => {
       ),
     );
 
-    expect.assertions(3);
+    expect.assertions(4);
     try {
       await signIn({ email: "person@example.com", password: "wrong" });
     } catch (error) {
@@ -390,6 +404,9 @@ describe("auth API", () => {
       expect((error as AuthRequestError).status).toBe(200);
       expect((error as AuthRequestError).details).toEqual([
         { message: "Invalid credentials" },
+      ]);
+      expect((error as AuthRequestError).topLevelErrors).toEqual([
+        { message: "Invalid credentials", kind: "UNKNOWN" },
       ]);
     }
   });
@@ -408,7 +425,7 @@ describe("auth API", () => {
     ).rejects.toMatchObject({
       name: "AuthRequestError",
       status: 200,
-      message: "Unable to read authentication response",
+      message: "Unable to read GraphQL response",
     });
   });
 });
