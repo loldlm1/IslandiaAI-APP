@@ -5,7 +5,7 @@ import type { Page } from "@playwright/test";
 
 import { isUsingRealGraphQL, resolveGraphQLEndpoint } from "./graphql";
 
-const MOCK_EMAIL = "isla@example.com";
+const MOCK_EMAIL = "admin@example.com";
 const MOCK_PASSWORD = "password123";
 
 export type SignInCredentials = {

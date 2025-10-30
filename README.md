@@ -65,7 +65,7 @@ This package contains the Next.js interface for IslandiaAI. It consumes the Rail
   ```bash
   NEXT_PUBLIC_GRAPHQL_URL=http://localhost:3000/graphql yarn test:e2e
   ```
-- When targeting the mocked endpoint (default), the suite signs in with the bundled mock account (`isla@example.com` / `password123`).
+- When targeting the mocked endpoint (default), the suite signs in with the bundled mock account (`admin@example.com` / `password123`).
 - When `NEXT_PUBLIC_GRAPHQL_URL` is set, the harness automatically provisions a throwaway account for the run by generating unique credentials with `@faker-js/faker` and `crypto.randomUUID()`, registering them via GraphQL, and reusing the session across specs. No manual cleanup or additional environment variables are required.
 - Sign-up flows are automatically stubbed in Playwright when targeting a real GraphQL API so we don't create persistent accounts during CI runs beyond the throwaway credential described above.
 - When using a real API, test timeouts are automatically increased (from 60s to 90s) to accommodate network latency.

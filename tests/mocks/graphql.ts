@@ -6,8 +6,8 @@ export interface GraphQLErrorEnvelope {
 
 const defaultAuthUser: AuthUser = {
   id: "user_123",
-  email: "isla@example.com",
-  name: "Isla Innovator",
+  email: "admin@example.com",
+  name: "admin Innovator",
 };
 
 export const mockAuthUser: AuthUser = defaultAuthUser;
