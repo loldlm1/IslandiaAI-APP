@@ -1,12 +1,30 @@
 import type {
   GraphQLRequestErrorOptions,
   GraphQLRequestSuccess,
+  GraphQLService,
 } from "@/src/services/graphql/core";
 import {
   GraphQLRequestError,
-  createGraphQLService,
+  executeGraphQLService,
   normalizeUserErrors,
 } from "@/src/services/graphql/core";
+import {
+  signInService,
+  signOutService,
+  signUpService,
+  viewerService,
+  type SignInServiceData,
+  type SignInServiceInput,
+  type SignInServiceVariables,
+  type SignUpServiceData,
+  type SignUpServiceInput,
+  type SignUpServiceVariables,
+  type SignOutServiceData,
+  type SignOutServiceInput,
+  type SignOutServiceVariables,
+  type ViewerServiceData,
+  type ViewerServiceInput,
+} from "@/src/services/graphql/auth";
 
 import type {
   AuthUser,
@@ -15,9 +33,9 @@ import type {
   SignOutResult,
   SignUpPayload,
   SignUpResult,
-  UserErrorPayload,
-  ViewerResult,
 } from "./types";
+
+type AuthRequestOptions = { headers?: HeadersInit; locale?: string | null };
 
 export class AuthRequestError extends GraphQLRequestError {
   constructor(message: string, options: GraphQLRequestErrorOptions = {}) {
@@ -26,13 +44,13 @@ export class AuthRequestError extends GraphQLRequestError {
   }
 }
 
-async function executeAuthRequest<TData, TVariables = Record<string, unknown>>(
-  payload: { body: { query: string; operationName?: string; variables?: TVariables } },
-  options: { headers?: HeadersInit; locale?: string | null } = {},
+async function executeAuthService<TInput, TData, TVariables>(
+  service: GraphQLService<TInput, TVariables>,
+  input: TInput,
+  options: AuthRequestOptions = {},
 ): Promise<GraphQLRequestSuccess<TData>> {
   try {
-    const service = createGraphQLService();
-    return await service.execute<TData, TVariables>(payload.body, options);
+    return await executeGraphQLService<TData, TVariables, TInput>(service, input, options);
   } catch (error) {
     if (error instanceof GraphQLRequestError) {
       throw new AuthRequestError(error.message, {
@@ -47,62 +65,15 @@ async function executeAuthRequest<TData, TVariables = Record<string, unknown>>(
   }
 }
 
-interface SignInMutationResult {
-  signIn?: {
-    user?: AuthUser | null;
-    userErrors?: UserErrorPayload[];
-  } | null;
-}
-
-interface SignInMutationVariables {
-  input: {
-    credentials: {
-      email: string;
-      password: string;
-    };
-  };
-}
-
-const SIGN_IN_MUTATION = /* GraphQL */ `
-  mutation SignIn($input: SignInInput!) {
-    signIn(input: $input) {
-      user {
-        id
-        email
-        name
-      }
-      userErrors {
-        message
-        path
-      }
-    }
-  }
-`;
-
 export async function signIn(
   payload: SignInPayload,
   options: { locale?: string | null } = {},
 ): Promise<SignInResult> {
-  const { data, setCookies } = await executeAuthRequest<
-    SignInMutationResult,
-    SignInMutationVariables
-  >(
-    {
-      body: {
-        operationName: "SignIn",
-        query: SIGN_IN_MUTATION,
-        variables: {
-          input: {
-            credentials: {
-              email: payload.email,
-              password: payload.password,
-            },
-          },
-        },
-      },
-    },
-    options,
-  );
+  const { data, setCookies } = await executeAuthService<
+    SignInServiceInput,
+    SignInServiceData,
+    SignInServiceVariables
+  >(signInService, payload, options);
 
   const result = data.signIn;
 
@@ -119,66 +90,15 @@ export async function signIn(
   };
 }
 
-interface SignUpMutationResult {
-  signUp?: {
-    user?: AuthUser | null;
-    userErrors?: UserErrorPayload[];
-  } | null;
-}
-
-interface SignUpMutationVariables {
-  input: {
-    attributes: {
-      email: string;
-      name: string;
-      password: string;
-      passwordConfirmation: string;
-    };
-  };
-}
-
-const SIGN_UP_MUTATION = /* GraphQL */ `
-  mutation SignUp($input: SignUpInput!) {
-    signUp(input: $input) {
-      user {
-        id
-        email
-        name
-      }
-      userErrors {
-        message
-        path
-      }
-    }
-  }
-`;
-
 export async function signUp(
   payload: SignUpPayload,
   options: { locale?: string | null } = {},
 ): Promise<SignUpResult> {
-  const { data, setCookies } = await executeAuthRequest<
-    SignUpMutationResult,
-    SignUpMutationVariables
-  >(
-    {
-      body: {
-        operationName: "SignUp",
-        query: SIGN_UP_MUTATION,
-        variables: {
-          input: {
-            attributes: {
-              email: payload.email,
-              name: payload.name,
-              password: payload.password,
-              passwordConfirmation: payload.passwordConfirmation,
-            },
-          },
-        },
-      },
-    },
-    options,
-  );
+  const { data, setCookies } = await executeAuthService<
+    SignUpServiceInput,
+    SignUpServiceData,
+    SignUpServiceVariables
+  >(signUpService, payload, options);
 
   const result = data.signUp;
 
@@ -195,51 +115,14 @@ export async function signUp(
   };
 }
 
-interface SignOutMutationResult {
-  signOut?: {
-    user?: AuthUser | null;
-    userErrors?: UserErrorPayload[];
-  } | null;
-}
-
-interface SignOutMutationVariables {
-  input: Record<string, never>;
-}
-
-const SIGN_OUT_MUTATION = /* GraphQL */ `
-  mutation SignOut($input: SignOutInput!) {
-    signOut(input: $input) {
-      user {
-        id
-        email
-        name
-      }
-      userErrors {
-        message
-        path
-      }
-    }
-  }
-`;
-
 export async function signOut(
   options: { headers?: HeadersInit; locale?: string | null } = {},
 ): Promise<SignOutResult> {
-  const { data, setCookies } = await executeAuthRequest<
-    SignOutMutationResult,
-    SignOutMutationVariables
-  >(
-    {
-      body: {
-        operationName: "SignOut",
-        query: SIGN_OUT_MUTATION,
-        variables: {
-          input: {},
-        },
-      },
-    },
-    options,
-  );
+  const { data, setCookies } = await executeAuthService<
+    SignOutServiceInput,
+    SignOutServiceData,
+    SignOutServiceVariables
+  >(signOutService, undefined, options);
 
   const result = data.signOut;
 
@@ -256,27 +139,13 @@ export async function signOut(
   };
 }
 
-const VIEWER_QUERY = /* GraphQL */ `
-  query Viewer {
-    viewer {
-      id
-      email
-      name
-    }
-  }
-`;
-
 export async function fetchViewer({
   headers,
   locale,
 }: { headers?: HeadersInit; locale?: string | null } = {}): Promise<AuthUser | null> {
-  const { data } = await executeAuthRequest<ViewerResult>(
-    {
-      body: {
-        operationName: "Viewer",
-        query: VIEWER_QUERY,
-      },
-    },
+  const { data } = await executeAuthService<ViewerServiceInput, ViewerServiceData, undefined>(
+    viewerService,
+    undefined,
     { headers, locale },
   );
 
