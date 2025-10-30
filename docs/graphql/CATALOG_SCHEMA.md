@@ -57,6 +57,73 @@ This reference summarizes the current GraphQL surface captured in [`frontend/doc
 | `updateProductRequest` | `input: UpdateProductRequestInput!` | Update a product request on an order owned by the current user. |
 | `updateSupplier` | `input: UpdateSupplierInput!` | Update a supplier owned by the current user. |
 
+## Error handling
+
+GraphQL operations surface problems either through a top-level `errors` array or via mutation-level `userErrors`. Keep the copy in [`config/locales/en.yml`](../../../config/locales/en.yml) and [`config/locales/es.yml`](../../../config/locales/es.yml) synchronized with the helpers noted below so user-facing messaging stays aligned across languages.
+
+### Top-level `errors`
+
+[`app/graphql/graphql_policy_helper.rb`](../../../app/graphql/graphql_policy_helper.rb) raises `GraphQL::ExecutionError` instances whenever authentication or authorization guardrails fail, or when a requested record cannot be located. Those exceptions halt query execution and populate the response `errors` array with translated messages.
+
+| Scenario | Helper | Translation key | English copy | Spanish copy |
+| --- | --- | --- | --- | --- |
+| Viewer is not signed in | `GraphqlPolicyHelper::AuthenticationError` | `graphql.errors.authentication_required` | You must be signed in to perform this action. | Debes iniciar sesión para realizar esta acción. |
+| Viewer lacks permission | `GraphqlPolicyHelper::AuthorizationError` | `graphql.errors.forbidden` | You are not authorized to access this %{resource}. | No tienes autorización para acceder a este %{resource}. |
+| Global ID resolves to nothing | `GraphqlPolicyHelper#load_owned_object` | `graphql.errors.not_found` | %{resource} could not be found. | No se pudo encontrar %{resource}. |
+
+Example query rejection (`viewer` field) showing the `graphql.errors.authentication_required` message:
+
+```json
+{
+  "data": {
+    "viewer": null
+  },
+  "errors": [
+    {
+      "message": "You must be signed in to perform this action.",
+      "path": ["viewer"]
+    }
+  ]
+}
+```
+
+Switch the locale to `es` to receive the Spanish variant (`Debes iniciar sesión para realizar esta acción.`) from the same translation key.
+
+### Mutation-level `userErrors`
+
+Mutations use [`Types::UserErrorType`](../../../app/graphql/types/user_error_type.rb) as a shared envelope for validation and authorization feedback. [`Mutations::BaseMutation`](../../../app/graphql/mutations/base_mutation.rb) normalizes ActiveModel errors (`#user_errors_from`) and exposes helper builders that lean on the same translation keys consumed by the policy helper.
+
+| Scenario | Source | Translation key | English copy | Spanish copy |
+| --- | --- | --- | --- | --- |
+| Input fails model validations | `Mutations::BaseMutation#user_errors_from` | ActiveModel error messages | Surfaces the model's `full_message` output. | Surfacing depends on the model translations configured in Rails. |
+| Mutation requires login | `Mutations::BaseMutation#unauthorized_error` | `graphql.errors.authentication_required` | You must be signed in to perform this action. | Debes iniciar sesión para realizar esta acción. |
+| Session missing on sign out | [`Mutations::SignOut`](../../../app/graphql/mutations/sign_out.rb)#not_signed_in_message | `graphql.errors.not_signed_in` | You are not signed in. | No has iniciado sesión. |
+| Invalid sign-in credentials | [`Mutations::SignIn`](../../../app/graphql/mutations/sign_in.rb)#invalid_credentials_error | `graphql.errors.invalid_credentials` | Invalid email or password. | Correo electrónico o contraseña inválidos. |
+| Destroy fails in delete mutations | [`Mutations::DeleteCustomer`](../../../app/graphql/mutations/delete_customer.rb), [`DeleteOrder`](../../../app/graphql/mutations/delete_order.rb), [`DeleteProduct`](../../../app/graphql/mutations/delete_product.rb), [`DeleteProductRequest`](../../../app/graphql/mutations/delete_product_request.rb), [`DeleteSupplier`](../../../app/graphql/mutations/delete_supplier.rb) | `graphql.errors.customer_delete_failed`<br>`graphql.errors.order_delete_failed`<br>`graphql.errors.product_delete_failed`<br>`graphql.errors.product_request_delete_failed`<br>`graphql.errors.supplier_delete_failed` | Customer could not be deleted.<br>Order could not be deleted.<br>Product could not be deleted.<br>Product request could not be deleted.<br>Supplier could not be deleted. | No se pudo eliminar el cliente.<br>No se pudo eliminar el pedido.<br>No se pudo eliminar el producto.<br>No se pudo eliminar la solicitud de producto.<br>No se pudo eliminar el proveedor. |
+
+These translations now pull directly from `config/locales/en.yml` and `config/locales/es.yml`, ensuring the deletion failure messages stay aligned across both languages.
+| Decimal input cannot be coerced | [`Types::Scalars::Decimal`](../../../app/graphql/types/scalars/decimal.rb)#invalid_message | `graphql.errors.invalid_decimal` | Value "%{value}" is not a valid decimal. | El valor "%{value}" no es un decimal válido. |
+
+Typical mutation response (failed `signIn` mutation using `graphql.errors.invalid_credentials`):
+
+```json
+{
+  "data": {
+    "signIn": {
+      "user": null,
+      "userErrors": [
+        {
+          "path": [],
+          "message": "Invalid email or password."
+        }
+      ]
+    }
+  }
+}
+```
+
+Update the locale to `es` to localize the same entry to `Correo electrónico o contraseña inválidos.`
+
 ## Subscriptions
 
 _No subscription fields are defined in the current schema._
