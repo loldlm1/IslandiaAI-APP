@@ -54,12 +54,22 @@ This package contains the Next.js interface for IslandiaAI. It consumes the Rail
 - Playwright end-to-end journeys covering order creation, invoice lifecycle, magic submission uploads, and the new authentication flows in `tests/e2e/auth.spec.ts`. Ensure browsers are provisioned via `yarn playwright install-deps` and `yarn playwright install` before running `yarn test:e2e`.
 - CI should execute `yarn codegen && yarn lint && yarn test && yarn test:e2e` before merge.
 
-### Updating MSW fixtures
-- Centralize GraphQL auth mocks in:
-- `src/mocks/handlers/auth.ts` – signIn, signUp, and signOut mutations.
-  - `src/mocks/handlers/dashboard.ts` – viewer query used for session bootstrapping.
-  - `app/api/mock/graphql/route.ts` – local GraphQL endpoint consumed during Playwright runs.
-- When backend auth contracts change, update the fixtures above, then re-run `yarn lint`, `yarn test`, and `yarn test:e2e` to confirm parity across component, integration, and E2E suites.
+## GraphQL service layer and mocks
+
+### Directory layout
+- `src/services/graphql/core/` – shared infrastructure for the service clients (endpoint resolution, error normalization, and the `executeGraphQLService` helper).
+- `src/services/graphql/<domain>/` – typed service definitions grouped by domain (for example, `auth/signIn.ts`, `auth/signOut.ts`, `auth/viewer.ts`). Each file exports a `GraphQLService` descriptor that pairs an operation name with its document and variable builder.
+- `src/services/graphql/index.ts` – aggregator that re-exports every domain so hooks, mocks, and components can import from a single entry point.
+
+### Registering a new service
+1. Create a file under the appropriate domain folder (or create a new domain folder under `src/services/graphql/`) that exports a `GraphQLService` typed with its input and variables.
+2. Export the service from the domain's `index.ts` (create one if necessary) and add it to `src/services/graphql/index.ts` so the module is available application-wide.
+3. If the operation needs bespoke helpers (builders, type aliases, error transforms), co-locate them next to the service definition to keep mocks and tests in sync.
+
+### Tests and mocks reuse the services
+- `tests/mocks/services/auth.ts` registers each auth service alongside variable parsers and responders. The registry powers both the MSW handlers and the mock GraphQL API route.
+- `src/mocks/handlers/auth.ts` and `app/api/mock/graphql/route.ts` consume the registry through `dispatchAuthOperation`, so updating a service's document or operation name in one place propagates everywhere.
+- When adding a new service, extend the matching `tests/mocks/services/<domain>.ts` registry entry (or create a new registry if one does not exist) and import it inside the MSW handlers. Jest and Playwright suites will automatically pick up the new operation without editing disparate mock files.
 
 ### E2E Testing with Real GraphQL API
 - By default, E2E tests use mocked GraphQL endpoints via `app/api/mock/graphql/route.ts`.

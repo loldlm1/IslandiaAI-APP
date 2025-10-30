@@ -39,6 +39,10 @@ All quality gates must pass before committing.
 - Mutations: `createOrder`, `updateOrderStatus`, `submitMagicInvoice`.
 - Domain entities mirror the Rails architecture (users own suppliers/customers/products/orders; orders link product requests and invoices; invoices/line items reconcile financials; magic invoice submissions track ingestion status).
 - Keep GraphQL documents in `src/graphql/` and prefer generated hooks for data access.
+- Add or modify GraphQL operations only through the `src/services/graphql/` service layer so mocks and API routes stay in sync—do not reach into generated documents directly from components.
+
+## Service change checklist
+- After editing any GraphQL service, run `yarn lint`, `yarn test`, `yarn coverage`, and `yarn test:e2e` locally to ensure the contract, mocks, and UI remain aligned.
 
 ## Pull request checklist
 - Lint, unit, coverage, and Playwright suites pass locally.
