@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import SignUpForm from "./SignUpForm";
 
@@ -6,6 +6,8 @@ import { AuthRequestError, signUp } from "@/src/lib/auth/api";
 import { useRouter } from "next/navigation";
 import { DEFAULT_LOCALE } from "@/src/lib/locale/constants";
 import { LocaleProvider } from "@tailadmin/context/LocaleContext";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 
 jest.mock("next/navigation", () => ({
   useRouter: jest.fn(),
@@ -117,5 +119,62 @@ describe("SignUpForm", () => {
       await screen.findByText("Email already registered"),
     ).toBeInTheDocument();
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it("does not emit hydration warnings when password managers adjust autocomplete", () => {
+    const consoleErrorSpy = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    try {
+      const serverHTML = renderToString(
+        <LocaleProvider initialLocale={DEFAULT_LOCALE}>
+          <SignUpForm />
+        </LocaleProvider>,
+      );
+
+      const container = document.createElement("div");
+      container.innerHTML = serverHTML;
+
+      const enforceAutocomplete = (name: string, value: string) => {
+        const input = container.querySelector<HTMLInputElement>(
+          `input[name="${name}"]`,
+        );
+        if (input) {
+          input.setAttribute("autocomplete", value);
+        }
+      };
+
+      enforceAutocomplete("name", "name");
+      enforceAutocomplete("email", "email");
+      enforceAutocomplete("password", "new-password");
+      enforceAutocomplete("confirmPassword", "new-password");
+
+      let root: ReturnType<typeof hydrateRoot> | undefined;
+
+      act(() => {
+        root = hydrateRoot(
+          container,
+          <LocaleProvider initialLocale={DEFAULT_LOCALE}>
+            <SignUpForm />
+          </LocaleProvider>,
+        );
+      });
+
+      act(() => {
+        root?.unmount();
+      });
+
+      const hydrationWarnings = consoleErrorSpy.mock.calls.filter((call) =>
+        call.some(
+          (message) =>
+            typeof message === "string" && message.includes("did not match"),
+        ),
+      );
+
+      expect(hydrationWarnings).toHaveLength(0);
+    } finally {
+      consoleErrorSpy.mockRestore();
+    }
   });
 });

@@ -154,6 +154,10 @@ export default function SignInForm() {
               name="email"
               type="email"
               placeholder="you@example.com"
+              autoComplete="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               error={Boolean(fieldErrors.email)}
               hint={fieldErrors.email}
               disabled={isSubmitting}
@@ -169,6 +173,10 @@ export default function SignInForm() {
                 name="password"
                 type={showPassword ? "text" : "password"}
                 placeholder="Enter your password"
+                autoComplete="current-password"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 error={Boolean(fieldErrors.password)}
                 hint={fieldErrors.password}
                 disabled={isSubmitting}
