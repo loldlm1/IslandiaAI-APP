@@ -6,6 +6,8 @@ import { resolveGraphQLEndpoint } from "./endpoints";
 import { GraphQLRequestError } from "./errors";
 import { normalizeTopLevelErrors } from "./errorMapping";
 import type {
+  ExecuteGraphQLServiceOptions,
+  GraphQLClient,
   GraphQLRequestOptions,
   GraphQLRequestPayload,
   GraphQLRequestSuccess,
@@ -41,7 +43,7 @@ async function parseJsonResponse<T>(response: Response): Promise<T | null> {
   }
 }
 
-export function createGraphQLService(fetchImpl: typeof fetch = globalThis.fetch): GraphQLService {
+export function createGraphQLService(fetchImpl: typeof fetch = globalThis.fetch): GraphQLClient {
   return {
     async execute<TData, TVariables = Record<string, unknown>>(
       payload: GraphQLRequestPayload<TVariables>,
@@ -98,3 +100,19 @@ export function createGraphQLService(fetchImpl: typeof fetch = globalThis.fetch)
 }
 
 export const graphQLService = createGraphQLService();
+
+export async function executeGraphQLService<TData, TVariables, TInput>(
+  service: GraphQLService<TInput, TVariables>,
+  input: TInput,
+  options: ExecuteGraphQLServiceOptions = {},
+): Promise<GraphQLRequestSuccess<TData>> {
+  const { client = graphQLService, ...requestOptions } = options;
+  const variables = service.buildVariables?.(input);
+  const payload: GraphQLRequestPayload<TVariables> = {
+    operationName: service.operationName,
+    query: service.document,
+    ...(variables !== undefined ? { variables } : {}),
+  };
+
+  return client.execute<TData, TVariables>(payload, requestOptions);
+}

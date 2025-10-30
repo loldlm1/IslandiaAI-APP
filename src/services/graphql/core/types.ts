@@ -66,9 +66,19 @@ export interface GraphQLNormalizedErrorPayload {
   userErrors: GraphQLUserError[];
 }
 
-export interface GraphQLService {
+export interface GraphQLService<TInput, TVariables = Record<string, unknown> | undefined> {
+  operationName: string;
+  document: string;
+  buildVariables?: (input: TInput) => TVariables;
+}
+
+export interface GraphQLClient {
   execute<TData, TVariables = Record<string, unknown>>(
     payload: GraphQLRequestPayload<TVariables>,
     options?: GraphQLRequestOptions,
   ): Promise<GraphQLRequestSuccess<TData>>;
+}
+
+export interface ExecuteGraphQLServiceOptions extends GraphQLRequestOptions {
+  client?: GraphQLClient;
 }

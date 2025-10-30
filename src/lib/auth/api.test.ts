@@ -1,229 +1,139 @@
+jest.mock("@/src/services/graphql/core", () => {
+  const actual = jest.requireActual("@/src/services/graphql/core");
+  return {
+    ...actual,
+    executeGraphQLService: jest.fn(),
+  };
+});
+
+import {
+  executeGraphQLService,
+  GraphQLRequestError,
+  type GraphQLRequestSuccess,
+} from "@/src/services/graphql/core";
+import {
+  signInService,
+  signOutService,
+  signUpService,
+  viewerService,
+  type SignInServiceData,
+  type SignOutServiceData,
+  type SignUpServiceData,
+  type ViewerServiceData,
+} from "@/src/services/graphql/auth";
+
 import { AuthRequestError, fetchViewer, signIn, signOut, signUp } from "./api";
 import type { AuthUser, SignInPayload, SignUpPayload, UserErrorPayload } from "./types";
-import { resolveServerGraphQLEndpoint } from "@/src/services/graphql/core";
-import { DEFAULT_LOCALE } from "@/src/lib/locale/constants";
 
-describe("auth API", () => {
-  let originalFetch: typeof fetch | undefined;
-  let fetchMock: jest.MockedFunction<typeof fetch>;
-  const originalEnv = { ...process.env };
-  const globalScope = global as typeof globalThis & {
-    window?: unknown;
-    document?: unknown;
-  };
-  const originalWindow = globalScope.window;
-  const originalDocument = globalScope.document;
+const executeGraphQLServiceMock = executeGraphQLService as jest.MockedFunction<
+  typeof executeGraphQLService
+>;
 
+describe("auth API wrappers", () => {
   const userFixture: AuthUser = {
     id: "user-id",
     email: "person@example.com",
     name: "Ada Lovelace",
   };
 
-  beforeAll(() => {
-    originalFetch = global.fetch;
-  });
+  const graphQLSuccess = <TData,>(
+    data: TData,
+    setCookies: string[] = [],
+  ): GraphQLRequestSuccess<TData> => ({ data, setCookies });
 
   beforeEach(() => {
-    fetchMock = jest.fn() as jest.MockedFunction<typeof fetch>;
-    global.fetch = fetchMock;
-
-    Reflect.deleteProperty(globalScope, "window");
-    Reflect.deleteProperty(globalScope, "document");
-
-    process.env.NEXT_PUBLIC_GRAPHQL_URL = "/api/graphql";
-    process.env.GRAPHQL_SERVER_URL = "http://mock.api/graphql";
-  });
-
-  afterEach(() => {
     jest.clearAllMocks();
-
-    if (originalEnv.NEXT_PUBLIC_GRAPHQL_URL === undefined) {
-      delete process.env.NEXT_PUBLIC_GRAPHQL_URL;
-    } else {
-      process.env.NEXT_PUBLIC_GRAPHQL_URL = originalEnv.NEXT_PUBLIC_GRAPHQL_URL;
-    }
-
-    if (originalEnv.GRAPHQL_SERVER_URL === undefined) {
-      delete process.env.GRAPHQL_SERVER_URL;
-    } else {
-      process.env.GRAPHQL_SERVER_URL = originalEnv.GRAPHQL_SERVER_URL;
-    }
   });
 
-  afterAll(() => {
-    if (originalWindow === undefined) {
-      Reflect.deleteProperty(globalScope, "window");
-    } else {
-      globalScope.window = originalWindow;
-    }
-
-    if (originalDocument === undefined) {
-      Reflect.deleteProperty(globalScope, "document");
-    } else {
-      globalScope.document = originalDocument;
-    }
-
-    if (originalFetch) {
-      global.fetch = originalFetch;
-    }
-  });
-
-  const mockJsonResponse = (
-    body: unknown,
-    overrides: Partial<Response> = {},
-  ): Response => {
-    return {
-      ok: overrides.ok ?? true,
-      status: overrides.status ?? 200,
-      text: jest
-        .fn()
-        .mockImplementation(() =>
-          overrides.text ? overrides.text() : Promise.resolve(JSON.stringify(body)),
-        ),
-      headers: overrides.headers instanceof Headers ? overrides.headers : new Headers(overrides.headers),
-      ...overrides,
-    } as unknown as Response;
-  };
-
-  it("signs in with nested credentials and returns the viewer", async () => {
+  describe("signIn", () => {
     const payload: SignInPayload = {
       email: "person@example.com",
       password: "correct horse battery staple",
     };
 
-    fetchMock.mockResolvedValue(
-      mockJsonResponse({
-        data: {
-          signIn: {
-            user: userFixture,
-            userErrors: [],
-          },
-        },
-      }),
-    );
+    it("delegates to the sign-in service and returns the viewer", async () => {
+      executeGraphQLServiceMock.mockResolvedValueOnce(
+        graphQLSuccess<SignInServiceData>({
+          signIn: { user: userFixture, userErrors: [] },
+        }),
+      );
 
-    const result = await signIn(payload);
+      const result = await signIn(payload);
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      resolveServerGraphQLEndpoint(),
-      expect.objectContaining({
-        method: "POST",
-        cache: "no-store",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-
-    const [, init] = fetchMock.mock.calls[0];
-    const body = JSON.parse((init?.body ?? "") as string);
-    expect(body.operationName).toBe("SignIn");
-    expect(body.query).toContain("mutation SignIn");
-    expect(body.locale).toBe(DEFAULT_LOCALE);
-    expect(body.variables).toEqual({
-      input: {
-        credentials: {
-          email: payload.email,
-          password: payload.password,
-        },
-      },
+      expect(executeGraphQLServiceMock).toHaveBeenCalledWith(signInService, payload, {});
+      expect(result).toEqual({ user: userFixture, userErrors: [], setCookies: [] });
     });
 
-    expect(result).toEqual({ user: userFixture, userErrors: [], setCookies: [] });
-  });
+    it("normalizes user errors from the response", async () => {
+      const userErrors: UserErrorPayload[] = [
+        { message: "Invalid email", path: ["credentials", "email"] },
+      ];
 
-  it("returns authentication cookies from the sign-in response", async () => {
-    const payload: SignInPayload = {
-      email: "person@example.com",
-      password: "correct horse battery staple",
-    };
+      executeGraphQLServiceMock.mockResolvedValueOnce(
+        graphQLSuccess<SignInServiceData>({
+          signIn: { user: null, userErrors },
+        }),
+      );
 
-    fetchMock.mockResolvedValue(
-      mockJsonResponse(
+      const result = await signIn(payload);
+
+      expect(result.userErrors).toEqual([
         {
-          data: {
-            signIn: {
-              user: userFixture,
-              userErrors: [],
-            },
-          },
+          message: "Invalid email",
+          path: ["credentials", "email"],
+          kind: "VALIDATION",
         },
-        {
-          headers: new Headers([
-            ["set-cookie", "islandia_session=abc123; Path=/; HttpOnly"],
-            ["set-cookie", "refresh_token=xyz; Path=/"],
-          ]),
-        },
-      ),
-    );
+      ]);
+    });
 
-    const result = await signIn(payload);
+    it("propagates locale overrides to the executor", async () => {
+      executeGraphQLServiceMock.mockResolvedValueOnce(
+        graphQLSuccess<SignInServiceData>({
+          signIn: { user: userFixture, userErrors: [] },
+        }),
+      );
 
-    expect(result.setCookies).toEqual([
-      "islandia_session=abc123; Path=/; HttpOnly",
-      "refresh_token=xyz; Path=/",
-    ]);
-  });
+      await signIn(payload, { locale: "es" });
 
-  it("allows overriding the locale for sign-in requests", async () => {
-    fetchMock.mockResolvedValue(
-      mockJsonResponse({
-        data: {
-          signIn: {
-            user: userFixture,
-            userErrors: [],
-          },
-        },
-      }),
-    );
+      expect(executeGraphQLServiceMock).toHaveBeenCalledWith(
+        signInService,
+        payload,
+        { locale: "es" },
+      );
+    });
 
-    await signIn({ email: "person@example.com", password: "correct" }, { locale: "es" });
+    it("throws when the sign-in payload is missing", async () => {
+      executeGraphQLServiceMock.mockResolvedValueOnce(
+        graphQLSuccess<SignInServiceData>({ signIn: null }),
+      );
 
-    const [, init] = fetchMock.mock.calls[0];
-    const body = JSON.parse((init?.body ?? "") as string);
-    expect(body.locale).toBe("es");
-  });
+      await expect(signIn(payload)).rejects.toMatchObject({
+        name: "AuthRequestError",
+        message: "Authentication response did not include a sign-in payload",
+      });
+    });
 
-  it("returns sign-in user errors without throwing", async () => {
-    const userErrors: UserErrorPayload[] = [
-      { message: "Invalid email or password.", path: ["credentials", "password"] },
-    ];
+    it("wraps GraphQL request errors in AuthRequestError", async () => {
+      const graphQlError = new GraphQLRequestError("Invalid credentials", {
+        status: 401,
+        details: [{ message: "Invalid credentials" }],
+      });
+      executeGraphQLServiceMock.mockRejectedValueOnce(graphQlError);
 
-    fetchMock.mockResolvedValue(
-      mockJsonResponse({
-        data: {
-          signIn: {
-            user: null,
-            userErrors,
-          },
-        },
-      }),
-    );
-
-    const result = await signIn({ email: "person@example.com", password: "wrong" });
-
-    expect(result).toEqual({
-      user: null,
-      userErrors: [
-        {
-          message: "Invalid email or password.",
-          path: ["credentials", "password"],
-          kind: "INVALID_CREDENTIALS",
-        },
-      ],
-      setCookies: [],
+      expect.assertions(2);
+      try {
+        await signIn(payload);
+      } catch (error) {
+        expect(error).toBeInstanceOf(AuthRequestError);
+        expect(error).toMatchObject({
+          status: 401,
+          details: [{ message: "Invalid credentials" }],
+        });
+      }
     });
   });
 
-  it("throws when the sign-in payload is missing", async () => {
-    fetchMock.mockResolvedValue(mockJsonResponse({ data: { signIn: null } }));
-
-    await expect(signIn({ email: "user@example.com", password: "secret" })).rejects.toBeInstanceOf(
-      AuthRequestError,
-    );
-  });
-
-  it("signs up with nested attributes", async () => {
+  describe("signUp", () => {
     const payload: SignUpPayload = {
       email: "person@example.com",
       name: "Ada Lovelace",
@@ -231,201 +141,108 @@ describe("auth API", () => {
       passwordConfirmation: "correct horse battery staple",
     };
 
-    fetchMock.mockResolvedValue(
-      mockJsonResponse({
-        data: {
-          signUp: {
-            user: userFixture,
-            userErrors: [],
-          },
-        },
-      }),
-    );
+    it("delegates to the sign-up service", async () => {
+      executeGraphQLServiceMock.mockResolvedValueOnce(
+        graphQLSuccess<SignUpServiceData>({
+          signUp: { user: userFixture, userErrors: [] },
+        }, ["session=abc123"]),
+      );
 
-    const result = await signUp(payload);
+      const result = await signUp(payload);
 
-    const [, init] = fetchMock.mock.calls[0];
-    const body = JSON.parse((init?.body ?? "") as string);
-    expect(body.operationName).toBe("SignUp");
-    expect(body.query).toContain("mutation SignUp");
-    expect(body.locale).toBe(DEFAULT_LOCALE);
-    expect(body.variables).toEqual({
-      input: {
-        attributes: {
-          email: payload.email,
-          name: payload.name,
-          password: payload.password,
-          passwordConfirmation: payload.passwordConfirmation,
-        },
-      },
+      expect(executeGraphQLServiceMock).toHaveBeenCalledWith(signUpService, payload, {});
+      expect(result).toEqual({
+        user: userFixture,
+        userErrors: [],
+        setCookies: ["session=abc123"],
+      });
     });
 
-    expect(result).toEqual({ user: userFixture, userErrors: [], setCookies: [] });
-  });
+    it("throws when the sign-up payload is missing", async () => {
+      executeGraphQLServiceMock.mockResolvedValueOnce(
+        graphQLSuccess<SignUpServiceData>({ signUp: null }),
+      );
 
-  it("exposes sign-up user errors", async () => {
-    const userErrors: UserErrorPayload[] = [
-      { message: "Email has already been taken", path: ["attributes", "email"] },
-    ];
-
-    fetchMock.mockResolvedValue(
-      mockJsonResponse({
-        data: {
-          signUp: {
-            user: null,
-            userErrors,
-          },
-        },
-      }),
-    );
-
-    const result = await signUp({
-      email: "person@example.com",
-      name: "Ada",
-      password: "secret",
-      passwordConfirmation: "secret",
-    });
-
-    expect(result).toEqual({
-      user: null,
-      userErrors: [
-        {
-          message: "Email has already been taken",
-          path: ["attributes", "email"],
-          kind: "VALIDATION",
-        },
-      ],
-      setCookies: [],
+      await expect(signUp(payload)).rejects.toMatchObject({
+        name: "AuthRequestError",
+        message: "Registration response did not include a sign-up payload",
+      });
     });
   });
 
-  it("signs out using an empty input payload", async () => {
-    fetchMock.mockResolvedValue(
-      mockJsonResponse({
-        data: {
-          signOut: {
-            user: null,
-            userErrors: [],
-          },
-        },
-      }),
-    );
+  describe("signOut", () => {
+    it("passes headers and locale through to the executor", async () => {
+      executeGraphQLServiceMock.mockResolvedValueOnce(
+        graphQLSuccess<SignOutServiceData>({
+          signOut: { user: null, userErrors: [] },
+        }, ["session=cleared"]),
+      );
 
-    const result = await signOut();
+      const options = { headers: { cookie: "session=abc123" }, locale: "es" } as const;
+      const result = await signOut(options);
 
-    const [, init] = fetchMock.mock.calls[0];
-    const body = JSON.parse((init?.body ?? "") as string);
-    expect(body.operationName).toBe("SignOut");
-    expect(body.query).toContain("mutation SignOut");
-    expect(body.locale).toBe(DEFAULT_LOCALE);
-    expect(body.variables).toEqual({ input: {} });
-
-    expect(result).toEqual({ user: null, userErrors: [], setCookies: [] });
-  });
-
-  it("includes the overridden locale when signing out", async () => {
-    fetchMock.mockResolvedValue(
-      mockJsonResponse({
-        data: {
-          signOut: {
-            user: null,
-            userErrors: [],
-          },
-        },
-      }),
-    );
-
-    await signOut({ locale: "es" });
-
-    const [, init] = fetchMock.mock.calls[0];
-    const body = JSON.parse((init?.body ?? "") as string);
-    expect(body.locale).toBe("es");
-  });
-
-  it("fetches the viewer using the cookie-backed session", async () => {
-    fetchMock.mockResolvedValue(
-      mockJsonResponse({
-        data: {
-          viewer: userFixture,
-        },
-      }),
-    );
-
-    const result = await fetchViewer();
-
-    const [, init] = fetchMock.mock.calls[0];
-    expect(init).toMatchObject({
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      expect(executeGraphQLServiceMock).toHaveBeenCalledWith(
+        signOutService,
+        undefined,
+        options,
+      );
+      expect(result).toEqual({ user: null, userErrors: [], setCookies: ["session=cleared"] });
     });
-    const body = JSON.parse((init?.body ?? "") as string);
-    expect(body.operationName).toBe("Viewer");
-    expect(body.query).toContain("query Viewer");
-    expect(body.locale).toBe(DEFAULT_LOCALE);
 
-    expect(result).toEqual(userFixture);
+    it("throws when the sign-out payload is missing", async () => {
+      executeGraphQLServiceMock.mockResolvedValueOnce(
+        graphQLSuccess<SignOutServiceData>({ signOut: null }),
+      );
+
+      await expect(signOut()).rejects.toMatchObject({
+        name: "AuthRequestError",
+        message: "Sign-out response did not include a payload",
+      });
+    });
   });
 
-  it("allows overriding the locale when fetching the viewer", async () => {
-    fetchMock.mockResolvedValue(
-      mockJsonResponse({
-        data: {
-          viewer: userFixture,
-        },
-      }),
-    );
+  describe("fetchViewer", () => {
+    it("delegates to the viewer service and returns the user", async () => {
+      executeGraphQLServiceMock.mockResolvedValueOnce(
+        graphQLSuccess<ViewerServiceData>({ viewer: userFixture }),
+      );
 
-    await fetchViewer({ locale: "es" });
+      const result = await fetchViewer();
 
-    const [, init] = fetchMock.mock.calls[0];
-    const body = JSON.parse((init?.body ?? "") as string);
-    expect(body.locale).toBe("es");
-  });
+      expect(executeGraphQLServiceMock).toHaveBeenCalledWith(viewerService, undefined, {});
+      expect(result).toEqual(userFixture);
+    });
 
-  it("surfaces GraphQL errors with status and details", async () => {
-    fetchMock.mockResolvedValue(
-      mockJsonResponse(
-        {
-          errors: [{ message: "Invalid credentials" }],
-        },
-        {
-          ok: true,
-          status: 200,
-        },
-      ),
-    );
+    it("passes headers and locale overrides", async () => {
+      executeGraphQLServiceMock.mockResolvedValueOnce(
+        graphQLSuccess<ViewerServiceData>({ viewer: userFixture }),
+      );
 
-    expect.assertions(4);
-    try {
-      await signIn({ email: "person@example.com", password: "wrong" });
-    } catch (error) {
-      expect(error).toBeInstanceOf(AuthRequestError);
-      expect((error as AuthRequestError).status).toBe(200);
-      expect((error as AuthRequestError).details).toEqual([
-        { message: "Invalid credentials" },
-      ]);
-      expect((error as AuthRequestError).topLevelErrors).toEqual([
-        { message: "Invalid credentials", kind: "UNKNOWN" },
-      ]);
-    }
-  });
+      await fetchViewer({ headers: { cookie: "session=abc123" }, locale: "es" });
 
-  it("throws when JSON parsing fails", async () => {
-    const jsonError = new SyntaxError("Unexpected token");
+      expect(executeGraphQLServiceMock).toHaveBeenLastCalledWith(
+        viewerService,
+        undefined,
+        { headers: { cookie: "session=abc123" }, locale: "es" },
+      );
+    });
 
-    fetchMock.mockResolvedValue(
-      mockJsonResponse(null, {
-        text: jest.fn().mockRejectedValue(jsonError),
-      }),
-    );
+    it("wraps GraphQL request errors", async () => {
+      const graphQlError = new GraphQLRequestError("Unauthorized", { status: 401 });
+      executeGraphQLServiceMock.mockRejectedValueOnce(graphQlError);
 
-    await expect(
-      signIn({ email: "person@example.com", password: "secret" }),
-    ).rejects.toMatchObject({
-      name: "AuthRequestError",
-      status: 200,
-      message: "Unable to read GraphQL response",
+      await expect(fetchViewer()).rejects.toMatchObject({
+        name: "AuthRequestError",
+        status: 401,
+      });
+    });
+
+    it("returns null when the viewer is missing", async () => {
+      executeGraphQLServiceMock.mockResolvedValueOnce(
+        graphQLSuccess<ViewerServiceData>({ viewer: null }),
+      );
+
+      await expect(fetchViewer()).resolves.toBeNull();
     });
   });
 });
