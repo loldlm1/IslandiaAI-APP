@@ -6,10 +6,95 @@ import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useEffect, useState } from "react";
 
-import { signOut as signOutMutation } from "@/src/lib/auth/api";
+import {
+  SIGN_OUT_ERROR_CODE,
+  SIGN_OUT_ERROR_COOKIE_NAME,
+} from "@/src/lib/auth/constants";
 import { useLocale } from "@tailadmin/context/LocaleContext";
 
 type SignOutState = "loading" | "success" | "error";
+
+function readSignOutErrorCookie(): string | null {
+  const cookieEntry = document.cookie
+    .split(";")
+    .map((value) => value.trim())
+    .find((value) => value.startsWith(`${SIGN_OUT_ERROR_COOKIE_NAME}=`));
+
+  if (!cookieEntry) {
+    return null;
+  }
+
+  const [, rawValue] = cookieEntry.split("=");
+  if (!rawValue) {
+    return null;
+  }
+
+  try {
+    return decodeURIComponent(rawValue);
+  } catch {
+    return rawValue;
+  }
+}
+
+function clearSignOutErrorCookie() {
+  document.cookie = `${SIGN_OUT_ERROR_COOKIE_NAME}=; path=/; max-age=0`;
+}
+
+function appendErrorQuery(url: string): string {
+  if (!url) {
+    return `/signin?error=${encodeURIComponent(SIGN_OUT_ERROR_CODE)}`;
+  }
+
+  const [base, hash] = url.split("#", 2);
+  const separator = base.includes("?")
+    ? base.endsWith("?") || base.endsWith("&")
+      ? ""
+      : "&"
+    : "?";
+  const next = `${base}${separator}error=${encodeURIComponent(SIGN_OUT_ERROR_CODE)}`;
+
+  return hash ? `${next}#${hash}` : next;
+}
+
+function buildRedirectUrl(rawUrl: string | undefined, includeError: boolean): string {
+  const fallbackUrl = "/signin";
+
+  if (!rawUrl) {
+    return includeError ? appendErrorQuery(fallbackUrl) : fallbackUrl;
+  }
+
+  try {
+    const parsed = new URL(rawUrl, window.location.origin);
+
+    if (!parsed.pathname.startsWith("/")) {
+      parsed.pathname = fallbackUrl;
+    }
+
+    if (includeError) {
+      parsed.searchParams.set("error", SIGN_OUT_ERROR_CODE);
+    }
+
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    if (!rawUrl.startsWith("/")) {
+      return includeError ? appendErrorQuery(fallbackUrl) : fallbackUrl;
+    }
+
+    return includeError ? appendErrorQuery(rawUrl) : rawUrl;
+  }
+}
+
+function formatErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  if (typeof error === "string" && error.trim()) {
+    return error;
+  }
+
+  return "We couldn't complete your sign out. Please try again.";
+}
 
 export default function SignOutContent() {
   const router = useRouter();
@@ -22,28 +107,29 @@ export default function SignOutContent() {
 
     const performSignOut = async () => {
       try {
-        const result = await signOutMutation({ locale });
+        const result = await signOut({ callbackUrl: "/signin", redirect: false });
 
-        if (result.userErrors.length > 0) {
-          const messages = result.userErrors.map((error) => error.message);
-          throw new Error(messages.join(" "));
-        }
-
-        await signOut({ redirect: false });
+        const signOutError = readSignOutErrorCookie();
+        clearSignOutErrorCookie();
 
         if (!isMounted) return;
 
-        setState("success");
-        router.replace("/signin");
+        const redirectUrl = buildRedirectUrl(result?.url, Boolean(signOutError));
+
+        setState(signOutError ? "error" : "success");
+        if (signOutError) {
+          setError(signOutError);
+        }
+        router.replace(redirectUrl);
         router.refresh();
       } catch (error) {
         if (!isMounted) return;
+        const message = formatErrorMessage(error);
+        clearSignOutErrorCookie();
         setState("error");
-        const message =
-          error instanceof Error && error.message
-            ? error.message
-            : "We couldn't complete your sign out. Please try again.";
         setError(message);
+        router.replace(`/signin?error=${encodeURIComponent(SIGN_OUT_ERROR_CODE)}`);
+        router.refresh();
       }
     };
 

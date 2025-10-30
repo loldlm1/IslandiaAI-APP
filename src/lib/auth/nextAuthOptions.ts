@@ -2,7 +2,15 @@ import { cookies, headers } from "next/headers";
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
-import { AuthRequestError, signIn as signInMutation, signOut as signOutMutation } from "./api";
+import {
+  AuthRequestError,
+  signIn as signInMutation,
+  signOut as signOutMutation,
+} from "./api";
+import {
+  SIGN_OUT_ERROR_COOKIE_NAME,
+  SIGN_OUT_ERROR_MAX_AGE_SECONDS,
+} from "./constants";
 import { parseLocaleFromCookieHeader } from "@/src/lib/locale/utils";
 
 const defaultPort = process.env.PORT ?? "43111";
@@ -150,6 +158,35 @@ async function applyGraphqlCookies(setCookies: string[]): Promise<void> {
   }
 }
 
+async function clearSignOutErrorCookie(): Promise<void> {
+  const cookieStore = await cookies();
+  if (typeof cookieStore.delete === "function") {
+    cookieStore.delete(SIGN_OUT_ERROR_COOKIE_NAME);
+  }
+
+  cookieStore.set({
+    name: SIGN_OUT_ERROR_COOKIE_NAME,
+    value: "",
+    path: "/",
+    maxAge: 0,
+  });
+}
+
+async function setSignOutErrorCookie(message: string): Promise<void> {
+  const cookieStore = await cookies();
+  const serializedValue = encodeURIComponent(message);
+
+  cookieStore.set({
+    name: SIGN_OUT_ERROR_COOKIE_NAME,
+    value: serializedValue,
+    path: "/",
+    maxAge: SIGN_OUT_ERROR_MAX_AGE_SECONDS,
+    sameSite: "lax",
+    httpOnly: false,
+    secure: process.env.NODE_ENV === "production",
+  });
+}
+
 export const authOptions: NextAuthOptions = {
   trustHost: true,
   useSecureCookies: process.env.NODE_ENV === "production",
@@ -258,6 +295,8 @@ export const authOptions: NextAuthOptions = {
         const cookieHeader = headerStore.get("cookie");
         const locale = parseLocaleFromCookieHeader(cookieHeader);
 
+        await clearSignOutErrorCookie();
+
         if (!cookieHeader?.includes("islandia_session")) {
           return;
         }
@@ -268,8 +307,28 @@ export const authOptions: NextAuthOptions = {
         });
 
         await applyGraphqlCookies(result.setCookies);
+
+        if (result.userErrors.length > 0) {
+          console.warn("GraphQL sign-out returned user errors", result.userErrors);
+          const message = result.userErrors
+            .map((error) => error.message)
+            .filter((value): value is string => Boolean(value?.trim()))
+            .join(" ")
+            .trim();
+
+          await setSignOutErrorCookie(
+            message || "We couldn't complete your sign out. Please try again.",
+          );
+        }
       } catch (error) {
         console.error("Failed to clear authentication cookies", error);
+
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : "We couldn't complete your sign out. Please try again.";
+
+        await setSignOutErrorCookie(message);
       }
     },
   },

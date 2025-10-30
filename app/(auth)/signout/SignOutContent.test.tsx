@@ -5,9 +5,9 @@ import SignOutContent from "./SignOutContent";
 import { signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
-import { signOut as signOutMutation } from "@/src/lib/auth/api";
-import { DEFAULT_LOCALE } from "@/src/lib/locale/constants";
 import { LocaleProvider } from "@tailadmin/context/LocaleContext";
+
+import { DEFAULT_LOCALE } from "@/src/lib/locale/constants";
 
 jest.mock("next-auth/react", () => ({
   signOut: jest.fn(),
@@ -17,20 +17,11 @@ jest.mock("next/navigation", () => ({
   useRouter: jest.fn(),
 }));
 
-jest.mock("@/src/lib/auth/api", () => {
-  const actual = jest.requireActual("@/src/lib/auth/api");
-  return {
-    ...actual,
-    signOut: jest.fn(),
-  };
-});
-
 describe("SignOutContent", () => {
   const replace = jest.fn();
   const refresh = jest.fn();
   const useRouterMock = useRouter as jest.MockedFunction<typeof useRouter>;
   const signOutMock = signOut as jest.MockedFunction<typeof signOut>;
-  const signOutMutationMock = signOutMutation as jest.MockedFunction<typeof signOutMutation>;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -38,6 +29,7 @@ describe("SignOutContent", () => {
       replace,
       refresh,
     } as unknown as ReturnType<typeof useRouter>);
+    document.cookie = "";
   });
 
   function renderComponent() {
@@ -49,8 +41,7 @@ describe("SignOutContent", () => {
   }
 
   it("signs out successfully and redirects to sign in", async () => {
-    signOutMutationMock.mockResolvedValue({ user: null, userErrors: [], setCookies: [] });
-    signOutMock.mockResolvedValue(undefined as never);
+    signOutMock.mockResolvedValue({ url: "/signin" } as never);
 
     renderComponent();
 
@@ -59,9 +50,8 @@ describe("SignOutContent", () => {
     ).toBeInTheDocument();
 
     await waitFor(() =>
-      expect(signOutMutationMock).toHaveBeenCalledWith({ locale: DEFAULT_LOCALE }),
+      expect(signOutMock).toHaveBeenCalledWith({ callbackUrl: "/signin", redirect: false }),
     );
-    await waitFor(() => expect(signOutMock).toHaveBeenCalledWith({ redirect: false }));
 
     await waitFor(() =>
       expect(
@@ -73,32 +63,34 @@ describe("SignOutContent", () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
-  it("shows an error message when sign out fails", async () => {
-    signOutMutationMock.mockRejectedValue(new Error("Network error"));
+  it("redirects with a fallback error when sign out fails", async () => {
+    signOutMock.mockRejectedValue(new Error("Network error"));
 
     renderComponent();
 
     await waitFor(() => expect(screen.getByText("Network error")).toBeInTheDocument());
 
-    expect(signOutMock).not.toHaveBeenCalled();
-    expect(replace).not.toHaveBeenCalled();
-    expect(refresh).not.toHaveBeenCalled();
+    expect(replace).toHaveBeenCalledWith("/signin?error=SignOutFailed");
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 
-  it("surfaces user error messages from the API", async () => {
-    signOutMutationMock.mockResolvedValue({
-      user: null,
-      userErrors: [{ message: "Session could not be closed", path: [] }],
-      setCookies: [],
+  it("appends an error query parameter when the backend reports a failure", async () => {
+    signOutMock.mockImplementation(async () => {
+      document.cookie = "islandia_signout_error=" + encodeURIComponent("Session could not be closed");
+      return { url: "/signin" } as never;
     });
 
     renderComponent();
 
     await waitFor(() =>
+      expect(signOutMock).toHaveBeenCalledWith({ callbackUrl: "/signin", redirect: false }),
+    );
+
+    await waitFor(() =>
       expect(screen.getByText("Session could not be closed")).toBeInTheDocument(),
     );
 
-    expect(signOutMock).not.toHaveBeenCalled();
-    expect(replace).not.toHaveBeenCalled();
+    expect(replace).toHaveBeenCalledWith("/signin?error=SignOutFailed");
+    expect(document.cookie).not.toContain("islandia_signout_error=");
   });
 });

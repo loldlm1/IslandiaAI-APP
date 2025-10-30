@@ -10,6 +10,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { startTransition, useCallback, useEffect, useState } from "react";
 
+import { SIGN_OUT_ERROR_CODE } from "@/src/lib/auth/constants";
+
 const emailRegex = /.+@.+\..+/;
 
 type FieldErrors = Partial<Record<"email" | "password", string>>;
@@ -22,6 +24,8 @@ function mapError(code: string | null): string | null {
       return "Invalid email or password. Please try again.";
     case "AccessDenied":
       return "Access denied. Contact an administrator for help.";
+    case SIGN_OUT_ERROR_CODE:
+      return "We couldn't complete your sign out. Please try again.";
     default:
       return code.replace(/_/g, " ");
   }
