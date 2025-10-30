@@ -176,6 +176,10 @@ export default function SignUpForm() {
               id="name"
               name="name"
               placeholder="Jane Smith"
+              autoComplete="name"
+              autoCapitalize="words"
+              autoCorrect="off"
+              spellCheck={false}
               error={Boolean(fieldErrors.name)}
               hint={fieldErrors.name}
               disabled={isSubmitting}
@@ -190,6 +194,10 @@ export default function SignUpForm() {
               name="email"
               type="email"
               placeholder="you@example.com"
+              autoComplete="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               error={Boolean(fieldErrors.email)}
               hint={fieldErrors.email}
               disabled={isSubmitting}
@@ -204,6 +212,10 @@ export default function SignUpForm() {
               name="password"
               type="password"
               placeholder="Create a password"
+              autoComplete="new-password"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               error={Boolean(fieldErrors.password)}
               hint={fieldErrors.password}
               disabled={isSubmitting}
@@ -218,6 +230,10 @@ export default function SignUpForm() {
               name="confirmPassword"
               type="password"
               placeholder="Re-enter your password"
+              autoComplete="new-password"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               error={Boolean(fieldErrors.confirmPassword)}
               hint={fieldErrors.confirmPassword}
               disabled={isSubmitting}
