@@ -118,7 +118,7 @@ async function applyGraphqlCookies(setCookies: string[]): Promise<void> {
   }
 
   const cookieStore = await cookies();
-  const requestHeaders = headers();
+  const requestHeaders = await headers();
   const forwardedHost =
     requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? undefined;
   const normalizedHost = forwardedHost
