@@ -8,7 +8,8 @@
 ## Setup workflow
 1. Run `yarn install`.
 2. Copy `.env.example` to `.env.local` and set:
-   - `NEXT_PUBLIC_GRAPHQL_URL` to the Rails GraphQL endpoint.
+   - `NEXT_PUBLIC_GRAPHQL_URL` to the gateway endpoint exposed by this app (defaults to `/api/graphql`).
+   - `GRAPHQL_SERVER_URL` to the upstream Rails GraphQL endpoint that the gateway forwards to.
    - `GRAPHQL_SCHEMA_PATH=graphql/schema.graphql`.
    - `NEXTAUTH_SECRET` – secret used to sign NextAuth JWT/session cookies (generate a random string in production). Must remain consistent to avoid decryption errors.
    - `NEXTAUTH_URL` – (optional in development) the canonical URL. Defaults to `http://127.0.0.1:43111` in development. Required in production.
