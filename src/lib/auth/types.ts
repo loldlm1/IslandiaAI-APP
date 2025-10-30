@@ -1,3 +1,9 @@
+import type {
+  GraphQLErrorResponse,
+  GraphQLUserError,
+  GraphQLUserErrorPayload,
+} from "@/src/services/graphql/core";
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -32,17 +38,14 @@ export interface ViewerResult {
   viewer: AuthUser | null;
 }
 
-export interface GraphQLErrorResponse {
-  message: string;
-  path?: (string | number)[];
-}
-
 export interface SignOutResult {
   user: AuthUser | null;
   userErrors: UserError[];
   setCookies: string[];
 }
 
-export interface UserError extends GraphQLErrorResponse {
-  path: string[];
-}
+export type UserErrorPayload = GraphQLUserErrorPayload;
+
+export type UserError = GraphQLUserError;
+
+export type { GraphQLErrorResponse };

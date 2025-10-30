@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import {
   buildAuthUser,
   buildErrorResponse,
+  buildSignInErrors,
   buildSignInSuccess,
   buildSignOutSuccess,
   buildSignUpErrors,
@@ -39,6 +40,15 @@ export async function POST(request: NextRequest) {
         input?: { credentials?: { email?: string; password?: string } };
       };
       const email = variables.input?.credentials?.email ?? mockAuthUser.email;
+      const password = variables.input?.credentials?.password ?? "";
+
+      if (password !== "password123") {
+        return jsonResponse(
+          buildSignInErrors([
+            { message: "Invalid credentials", path: ["credentials", "password"] },
+          ]),
+        );
+      }
 
       sessionUser = buildAuthUser({ email });
 

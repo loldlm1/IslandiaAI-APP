@@ -272,7 +272,11 @@ describe("mock backend contract parity", () => {
       const response = await graphqlRoute(createNextRequest(payload));
       const result = await response.json();
 
-      expect(result).toEqual(buildSignInSuccess());
+      expect(result).toEqual(
+        buildSignInSuccess({
+          email: "user@example.com",
+        }),
+      );
       expect(response.headers.get("set-cookie")).toContain("islandia_session=mock-session");
     });
 
