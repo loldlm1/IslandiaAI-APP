@@ -16,6 +16,10 @@ jest.mock("./api", () => {
 
 import { authOptions } from "./nextAuthOptions";
 import { signIn, signOut } from "./api";
+import {
+  SIGN_OUT_ERROR_COOKIE_NAME,
+  SIGN_OUT_ERROR_MAX_AGE_SECONDS,
+} from "./constants";
 import { mockUser } from "@/src/mocks/handlers/auth";
 import { DEFAULT_LOCALE } from "@/src/lib/locale/constants";
 
@@ -45,6 +49,7 @@ describe("nextAuthOptions", () => {
     headers: jest.Mock;
   };
   const setCookieMock = jest.fn();
+  const deleteCookieMock = jest.fn();
 
   const validCredentials = {
     email: mockUser.email,
@@ -54,9 +59,11 @@ describe("nextAuthOptions", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     setCookieMock.mockClear();
+    deleteCookieMock.mockClear();
     cookiesMock.mockReturnValue({
       getAll: jest.fn(() => []),
       set: setCookieMock,
+      delete: deleteCookieMock,
     });
     headersMock.mockReturnValue(new Headers());
   });
@@ -268,10 +275,67 @@ describe("nextAuthOptions", () => {
     });
     expect(setCookieMock).toHaveBeenCalledWith(
       expect.objectContaining({
+        name: SIGN_OUT_ERROR_COOKIE_NAME,
+        maxAge: 0,
+      }),
+    );
+    expect(setCookieMock).toHaveBeenCalledWith(
+      expect.objectContaining({
         name: "islandia_session",
         maxAge: 0,
         httpOnly: true,
       }),
     );
+  });
+
+  it("records sign-out user errors without interrupting the flow", async () => {
+    const signOutEvent = authOptions.events?.signOut;
+    expect(signOutEvent).toBeDefined();
+
+    headersMock.mockReturnValueOnce(new Headers({ cookie: "islandia_session=xyz" }));
+    signOutMock.mockResolvedValue({
+      user: null,
+      userErrors: [{ message: "Session could not be closed", path: [] }],
+      setCookies: [],
+    });
+
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+
+    await signOutEvent?.();
+
+    expect(warnSpy).toHaveBeenCalledWith("GraphQL sign-out returned user errors", [
+      { message: "Session could not be closed", path: [] },
+    ]);
+    expect(setCookieMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: SIGN_OUT_ERROR_COOKIE_NAME,
+        maxAge: SIGN_OUT_ERROR_MAX_AGE_SECONDS,
+        httpOnly: false,
+      }),
+    );
+    warnSpy.mockRestore();
+  });
+
+  it("captures unexpected sign-out errors without throwing", async () => {
+    const signOutEvent = authOptions.events?.signOut;
+    expect(signOutEvent).toBeDefined();
+
+    headersMock.mockReturnValueOnce(new Headers({ cookie: "islandia_session=xyz" }));
+    const error = new Error("Network unavailable");
+    signOutMock.mockRejectedValue(error);
+
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+
+    await signOutEvent?.();
+
+    expect(errorSpy).toHaveBeenCalledWith("Failed to clear authentication cookies", error);
+    expect(setCookieMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: SIGN_OUT_ERROR_COOKIE_NAME,
+        maxAge: SIGN_OUT_ERROR_MAX_AGE_SECONDS,
+        httpOnly: false,
+      }),
+    );
+    errorSpy.mockRestore();
   });
 });
