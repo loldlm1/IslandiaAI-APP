@@ -14,7 +14,8 @@ This package contains the Next.js interface for IslandiaAI. It consumes the Rail
    - `yarn playwright install-deps` – installs system libraries needed inside fresh containers.
    - `yarn playwright install` – downloads the bundled browsers Playwright uses.
 3. Copy `.env.example` to `.env.local`, then set:
-   - `NEXT_PUBLIC_GRAPHQL_URL` – the backend GraphQL endpoint (e.g., `http://localhost:3000/graphql`).
+   - `NEXT_PUBLIC_GRAPHQL_URL` – the browser-visible GraphQL endpoint. Defaults to `/api/graphql` so the app uses the built-in proxy.
+   - `GRAPHQL_SERVER_URL` – the server-to-server GraphQL endpoint forwarded by the proxy (e.g., `http://localhost:3000/graphql`).
    - `GRAPHQL_SCHEMA_PATH=graphql/schema.graphql` – location of the shared SDL snapshot for code generation.
    - `NEXTAUTH_SECRET` – secret used to sign NextAuth JWT/session cookies (generate a random string in production). Must remain consistent across sessions to avoid decryption errors.
    - `NEXTAUTH_URL` – (optional in development) the canonical URL of your site. Defaults to `http://127.0.0.1:43111` in development. Required in production.
@@ -61,12 +62,12 @@ This package contains the Next.js interface for IslandiaAI. It consumes the Rail
 
 ### E2E Testing with Real GraphQL API
 - By default, E2E tests use mocked GraphQL endpoints via `app/api/mock/graphql/route.ts`.
-- To test against a real GraphQL API, set `NEXT_PUBLIC_GRAPHQL_URL` before running tests:
+- To test against a real GraphQL API, set `GRAPHQL_SERVER_URL` before running tests so the proxy forwards to your backend:
   ```bash
-  NEXT_PUBLIC_GRAPHQL_URL=http://localhost:3000/graphql yarn test:e2e
+  GRAPHQL_SERVER_URL=http://localhost:3000/graphql yarn test:e2e
   ```
 - When targeting the mocked endpoint (default), the suite signs in with the bundled mock account (`admin@example.com` / `password123`).
-- When `NEXT_PUBLIC_GRAPHQL_URL` is set, the harness automatically provisions a throwaway account for the run by generating unique credentials with `@faker-js/faker` and `crypto.randomUUID()`, registering them via GraphQL, and reusing the session across specs. No manual cleanup or additional environment variables are required.
+- When `GRAPHQL_SERVER_URL` points at a real API, the harness automatically provisions a throwaway account for the run by generating unique credentials with `@faker-js/faker` and `crypto.randomUUID()`, registering them via GraphQL, and reusing the session across specs. No manual cleanup or additional environment variables are required.
 - Sign-up flows are automatically stubbed in Playwright when targeting a real GraphQL API so we don't create persistent accounts during CI runs beyond the throwaway credential described above.
 - When using a real API, test timeouts are automatically increased (from 60s to 90s) to accommodate network latency.
 - Ensure your local GraphQL API is running and accessible before running E2E tests with real endpoints.
@@ -92,7 +93,7 @@ If redirects go to `localhost:3000` instead of the configured port:
 
 ### E2E Test Timeouts
 If E2E tests timeout when redirecting to dashboard:
-- Test timeouts are automatically increased when using real GraphQL API (`NEXT_PUBLIC_GRAPHQL_URL`).
+- Test timeouts are automatically increased when using real GraphQL API (`GRAPHQL_SERVER_URL`).
 - Ensure your GraphQL API responds within reasonable timeframes.
 - Check that the viewer query completes successfully for authenticated users.
 

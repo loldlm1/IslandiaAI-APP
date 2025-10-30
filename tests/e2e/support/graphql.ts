@@ -1,14 +1,47 @@
 import type { Page, Request, Route } from "@playwright/test";
 
 const DEFAULT_PORT = process.env.PORT ?? "43111";
-const DEFAULT_GRAPHQL_URL = `http://127.0.0.1:${DEFAULT_PORT}/api/mock/graphql`;
+const DEFAULT_BASE_URL = `http://127.0.0.1:${DEFAULT_PORT}`;
+const DEFAULT_PROXY_URL = `${DEFAULT_BASE_URL}/api/graphql`;
+const DEFAULT_UPSTREAM_URL = `${DEFAULT_BASE_URL}/api/mock/graphql`;
+
+function toAbsolute(url: string): string {
+  try {
+    return new URL(url).toString();
+  } catch {
+    return new URL(url, DEFAULT_BASE_URL).toString();
+  }
+}
 
 export function isUsingRealGraphQL(): boolean {
-  return Boolean(process.env.NEXT_PUBLIC_GRAPHQL_URL);
+  const upstream = process.env.GRAPHQL_SERVER_URL?.toLowerCase();
+  if (upstream) {
+    return !upstream.includes("/api/mock/");
+  }
+
+  const publicEndpoint = process.env.NEXT_PUBLIC_GRAPHQL_URL?.toLowerCase();
+  if (!publicEndpoint) {
+    return false;
+  }
+
+  if (publicEndpoint.includes("/api/mock/")) {
+    return false;
+  }
+
+  return !publicEndpoint.endsWith("/api/graphql");
 }
 
 export function resolveGraphQLEndpoint(): string {
-  return process.env.NEXT_PUBLIC_GRAPHQL_URL ?? DEFAULT_GRAPHQL_URL;
+  const endpoint = process.env.NEXT_PUBLIC_GRAPHQL_URL ?? DEFAULT_PROXY_URL;
+  return toAbsolute(endpoint);
+}
+
+export function resolveGraphQLUpstream(): string {
+  const endpoint =
+    process.env.GRAPHQL_SERVER_URL ??
+    process.env.NEXT_PUBLIC_GRAPHQL_URL ??
+    DEFAULT_UPSTREAM_URL;
+  return toAbsolute(endpoint);
 }
 
 interface MockGraphQLOperationOptions {

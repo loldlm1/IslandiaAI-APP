@@ -3,7 +3,11 @@ import { randomUUID } from "node:crypto";
 import { faker } from "@faker-js/faker";
 import type { Page } from "@playwright/test";
 
-import { isUsingRealGraphQL, resolveGraphQLEndpoint } from "./graphql";
+import {
+  isUsingRealGraphQL,
+  resolveGraphQLEndpoint,
+  resolveGraphQLUpstream,
+} from "./graphql";
 
 const MOCK_EMAIL = "admin@example.com";
 const MOCK_PASSWORD = "password123";
@@ -26,7 +30,7 @@ const SIGN_UP_MUTATION = /* GraphQL */ `
 let generatedCredentialsPromise: Promise<SignInCredentials> | null = null;
 
 async function registerAccount(credentials: SignInCredentials): Promise<void> {
-  const response = await fetch(resolveGraphQLEndpoint(), {
+  const response = await fetch(resolveGraphQLUpstream(), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({

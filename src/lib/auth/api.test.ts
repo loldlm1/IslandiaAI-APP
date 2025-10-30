@@ -1,7 +1,7 @@
 import {
   AuthRequestError,
-  GRAPHQL_ENDPOINT,
   fetchViewer,
+  resolveServerGraphQLEndpoint,
   signIn,
   signOut,
   signUp,
@@ -12,6 +12,13 @@ import { DEFAULT_LOCALE } from "@/src/lib/locale/constants";
 describe("auth API", () => {
   let originalFetch: typeof fetch | undefined;
   let fetchMock: jest.MockedFunction<typeof fetch>;
+  const originalEnv = { ...process.env };
+  const globalScope = global as typeof globalThis & {
+    window?: unknown;
+    document?: unknown;
+  };
+  const originalWindow = globalScope.window;
+  const originalDocument = globalScope.document;
 
   const userFixture: AuthUser = {
     id: "user-id",
@@ -26,13 +33,43 @@ describe("auth API", () => {
   beforeEach(() => {
     fetchMock = jest.fn() as jest.MockedFunction<typeof fetch>;
     global.fetch = fetchMock;
+
+    Reflect.deleteProperty(globalScope, "window");
+    Reflect.deleteProperty(globalScope, "document");
+
+    process.env.NEXT_PUBLIC_GRAPHQL_URL = "/api/graphql";
+    process.env.GRAPHQL_SERVER_URL = "http://mock.api/graphql";
   });
 
   afterEach(() => {
     jest.clearAllMocks();
+
+    if (originalEnv.NEXT_PUBLIC_GRAPHQL_URL === undefined) {
+      delete process.env.NEXT_PUBLIC_GRAPHQL_URL;
+    } else {
+      process.env.NEXT_PUBLIC_GRAPHQL_URL = originalEnv.NEXT_PUBLIC_GRAPHQL_URL;
+    }
+
+    if (originalEnv.GRAPHQL_SERVER_URL === undefined) {
+      delete process.env.GRAPHQL_SERVER_URL;
+    } else {
+      process.env.GRAPHQL_SERVER_URL = originalEnv.GRAPHQL_SERVER_URL;
+    }
   });
 
   afterAll(() => {
+    if (originalWindow === undefined) {
+      Reflect.deleteProperty(globalScope, "window");
+    } else {
+      globalScope.window = originalWindow;
+    }
+
+    if (originalDocument === undefined) {
+      Reflect.deleteProperty(globalScope, "document");
+    } else {
+      globalScope.document = originalDocument;
+    }
+
     if (originalFetch) {
       global.fetch = originalFetch;
     }
@@ -75,7 +112,7 @@ describe("auth API", () => {
     const result = await signIn(payload);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      GRAPHQL_ENDPOINT,
+      resolveServerGraphQLEndpoint(),
       expect.objectContaining({
         method: "POST",
         cache: "no-store",
