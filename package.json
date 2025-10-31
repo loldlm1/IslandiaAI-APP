@@ -17,6 +17,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@heroicons/react": "^2.1.5",
     "next": "16.0.0",
     "next-auth": "^4.24.12",
     "react": "19.2.0",
