@@ -33,6 +33,7 @@ const isUsingRealGraphQL = (() => {
 export default defineConfig({
   testDir: "tests/e2e",
   timeout: isUsingRealGraphQL ? 90_000 : 60_000,
+  workers: 1,
   expect: {
     timeout: 15_000,
   },

@@ -91,14 +91,9 @@ function extractSetCookies(response: Response): string[] {
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest): Promise<Response> {
-  const upstreamUrl = process.env.GRAPHQL_SERVER_URL;
-
-  if (!upstreamUrl) {
-    return NextResponse.json(
-      { error: "GraphQL server URL is not configured" },
-      { status: 500 },
-    );
-  }
+  const upstreamUrl =
+    process.env.GRAPHQL_SERVER_URL ??
+    new URL("/api/mock/graphql", request.nextUrl.origin).toString();
 
   const body = await request.text();
   const headers = forwardHeaders(request);
